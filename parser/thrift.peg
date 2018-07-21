@@ -1,0 +1,212 @@
+# Parsing Expression Grammar for Apache Thrift IDL.
+#
+# 1. https://github.com/apache/thrift/blob/master/doc/specs/idl.md
+# 2. https://github.com/pointlander/peg
+#
+# Copyright (C) 2018, Shawn Wang <https://github.com/jxskiss/>
+#
+# Last updated 2018-06-24.
+
+
+#-------------------------------------------------------------------------
+# Parser Declaration
+#-------------------------------------------------------------------------
+
+package parser
+
+type Thrift Peg {
+    D *Document
+}
+
+Document            <-  Spacing Header* Definition* EOT
+
+#-------------------------------------------------------------------------
+# Headers
+#-------------------------------------------------------------------------
+
+Header              <-  Include / CppInclude / Namespace
+
+Include             <-  INCLUDE Literal
+
+CppInclude          <-  CPP_INCLUDE Literal
+
+Namespace           <-  ( NAMESPACE ( NamespaceScope Identifier ) /
+                                    ( SMALLTALK_CATEGORY STIdentifier ) /
+                                    ( SMALLTALK_PREFIX Identifier ) ) /
+                        ( PHP_NAMESPACE Literal ) /
+                        ( XSD_NAMESPACE Literal )
+
+NamespaceScope      <-  ( <'*'> Spacing ) / Identifier
+
+
+#-------------------------------------------------------------------------
+# Definitions
+#-------------------------------------------------------------------------
+
+Definition          <-  Const / Typedef / Enum / Senum / Struct / Union / Service / Exception
+
+Const               <-  CONST FieldType Identifier EQUAL ConstValue ListSeparator?
+
+Typedef             <-  TYPEDEF DefinitionType Identifier
+
+Enum                <-  ENUM Identifier LWING ( Identifier ( EQUAL IntConstant )? ListSeparator? )* RWING
+
+Senum               <-  SENUM Identifier LWING ( Literal ListSeparator? )* RWING
+
+Struct              <-  STRUCT Identifier XSD_ALL? LWING Field* RWING
+
+Union               <-  UNION Identifier XSD_ALL? LWING Field* RWING
+
+Exception           <-  EXCEPTION Identifier LWING Field* RWING
+
+Service             <-  SERVICE Identifier ( EXTENDS Identifier )? LWING Function* RWING
+
+Field               <-  FieldID? FieldReq? FieldType Identifier ( EQUAL ConstValue )? XsdFieldOptions ListSeparator?
+
+FieldID             <-  IntConstant COLON
+
+FieldReq            <-  <( 'required' / 'optional' )> Spacing
+
+XsdFieldOptions     <-  XSD_OPTIONAL? / XSD_NILLABLE? / XsdAttrs?
+
+XsdAttrs            <-  XSD_ATTRS LWING Field* RWING
+
+Function            <-  ONEWAY? FunctionType Identifier LPAR Field* RPAR Throws? ListSeparator?
+
+FunctionType        <-  VOID / FieldType
+
+Throws              <-  THROWS LPAR Field* RPAR
+
+
+#-------------------------------------------------------------------------
+# Types
+#-------------------------------------------------------------------------
+
+FieldType           <-  BaseType / ContainerType / Identifier
+
+DefinitionType      <-  BaseType / ContainerType / Identifier
+
+BaseType            <-  BOOL / BYTE / I8 / I16 / I32 / I64 / DOUBLE / STRING / BINARY / SLIST
+
+ContainerType       <-  MapType / SetType / ListType
+
+MapType             <-  MAP CppType? LPOINT FieldType COMMA FieldType RPOINT
+
+SetType             <-  SET CppType? LPOINT FieldType RPOINT
+
+ListType            <-  LIST LPOINT FieldType RPOINT CppType?
+
+CppType             <-  CPP_TYPE Literal
+
+
+#-------------------------------------------------------------------------
+# Constant Values
+#-------------------------------------------------------------------------
+
+ConstValue          <-  DoubleConstant /
+                        IntConstant /       # NOTE: can be a prefix of DoubleConstant
+                        Literal /
+                        Identifier /
+                        ConstList /
+                        ConstMap
+
+DoubleConstant      <-  <( '+' / '-' )? ( ( Digit* '.' Digit+ Exponent? ) / ( Digit+ Exponent ) )> Spacing
+
+Exponent            <-  [eE] ( '+' / '-' )? Digit+
+
+IntConstant         <-  <( '+' / '-' )? Digit+> Spacing
+
+ConstList           <-  LBRK ( ConstValue ListSeparator? )* RBRK
+
+ConstMap            <-  LWING ( ConstValue COLON ConstValue ListSeparator? )* RWING
+
+
+#-------------------------------------------------------------------------
+# Basic Definitions
+#-------------------------------------------------------------------------
+
+Literal             <-  ( ( '"' <[^"]*> '"' ) / ( "'" <[^']*> "'" ) ) Spacing
+
+Identifier          <-  <( Letter / '_' ) ( Letter / Digit / '.' / '_' )*> Spacing
+
+STIdentifier        <-  <( Letter / '_' ) ( Letter / Digit / '.' / '_' / '-' )*> Spacing
+
+ListSeparator       <-  ( ',' / ';' ) Spacing
+
+Letter              <-  [a-z] / [A-Z]
+
+Digit               <-  [0-9]
+
+IdChars             <-  [a-z] / [A-Z] / [0-9] / [_$]
+
+Spacing             <-  ( Whitespace / LongComment / LineComment / Pragma )*
+Whitespace          <-  [ \t\r\n]+
+LongComment         <-  '/*' (!'*/' .)*      '*/'
+LineComment         <-  '//' (![\r\n] .)*    [\r\n]
+Pragma              <-  '#'  (![\r\n] .)*    [\r\n]
+
+
+#-------------------------------------------------------------------------
+# Keywords
+#-------------------------------------------------------------------------
+
+INCLUDE             <-  'include'               !IdChars Spacing
+CPP_INCLUDE         <-  'cpp_include'           !IdChars Spacing
+NAMESPACE           <-  'namespace'             !IdChars Spacing
+SMALLTALK_CATEGORY  <-  'smalltalk.category'    !IdChars Spacing
+SMALLTALK_PREFIX    <-  'smalltalk.prefix'      !IdChars Spacing
+PHP_NAMESPACE       <-  'php_namespace'         !IdChars Spacing
+XSD_NAMESPACE       <-  'xsd_namespace'         !IdChars Spacing
+
+CONST               <-  'const'                 !IdChars Spacing
+TYPEDEF             <-  'typedef'               !IdChars Spacing
+ENUM                <-  'enum'                  !IdChars Spacing
+SENUM               <-  'senum'                 !IdChars Spacing
+STRUCT              <-  'struct'                !IdChars Spacing
+UNION               <-  'union'                 !IdChars Spacing
+SERVICE             <-  'service'               !IdChars Spacing
+EXTENDS             <-  'extends'               !IdChars Spacing
+EXCEPTION           <-  'exception'             !IdChars Spacing
+ONEWAY              <-  'oneway'                !IdChars Spacing
+THROWS              <-  'throws'                !IdChars Spacing
+
+CPP_TYPE            <-  'cpp_type'              !IdChars Spacing
+XSD_ALL             <-  'xsd_all'               !IdChars Spacing
+XSD_OPTIONAL        <-  'xsd_optional'          !IdChars Spacing
+XSD_NILLABLE        <-  'xsd_nillable'          !IdChars Spacing
+XSD_ATTRS           <-  'xsd_attrs'             !IdChars Spacing
+
+VOID                <-  'void'                  !IdChars Spacing
+MAP                 <-  'map'                   !IdChars Spacing
+SET                 <-  'set'                   !IdChars Spacing
+LIST                <-  'list'                  !IdChars Spacing
+
+BOOL                <-  <'bool'>                !IdChars Spacing
+BYTE                <-  <'byte'>                !IdChars Spacing
+I8                  <-  <'i8'>                  !IdChars Spacing
+I16                 <-  <'i16'>                 !IdChars Spacing
+I32                 <-  <'i32'>                 !IdChars Spacing
+I64                 <-  <'i64'>                 !IdChars Spacing
+DOUBLE              <-  <'double'>              !IdChars Spacing
+STRING              <-  <'string'>              !IdChars Spacing
+BINARY              <-  <'binary'>              !IdChars Spacing
+SLIST               <-  <'slist'>               !IdChars Spacing
+
+
+#-------------------------------------------------------------------------
+#  Punctuators
+#-------------------------------------------------------------------------
+
+LBRK        <-  '['             Spacing
+RBRK        <-  ']'             Spacing
+LPAR        <-  '('             Spacing
+RPAR        <-  ')'             Spacing
+LWING       <-  '{'             Spacing
+RWING       <-  '}'             Spacing
+LPOINT      <-  '<'             Spacing
+RPOINT      <-  '>'             Spacing
+EQUAL       <-  '='     !"="    Spacing
+COMMA       <-  ','             Spacing
+COLON       <-  ':'             Spacing
+
+EOT         <-  !.
