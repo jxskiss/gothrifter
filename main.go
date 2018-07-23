@@ -17,6 +17,7 @@ func main() {
 	prefix := flags.String("prefix", "gen-thrifter", "the prefix of import path")
 	output := flags.String("output", "gen-thrifter", "the root output path for generated files")
 	genAll := flags.Bool("all", false, "also generate all included thrift files")
+	isDebugMode := flags.Bool("debug", false, "enable debug mode for generator")
 	flags.Parse(os.Args[1:])
 
 	if filepath.Base(*prefix) != filepath.Base(*output) {
@@ -33,6 +34,9 @@ func main() {
 	g := generator.New(*filename, *prefix, *output)
 	if *genAll {
 		g.GenAll = true
+	}
+	if *isDebugMode {
+		g.DebugMode = true
 	}
 	err := g.Parse()
 	if err != nil {

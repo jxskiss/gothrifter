@@ -72,6 +72,9 @@ func ToCamelCase(name string) string {
 	if strings.ToUpper(name) == name {
 		return name
 	}
+	if strings.ToLower(name) == "type" {
+		return "TypeA1"
+	}
 	sep := true
 	return strings.Map(func(r rune) rune {
 		if r == '_' {

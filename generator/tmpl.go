@@ -77,21 +77,21 @@ const structsTmpl = `
 
 {{ range $struct.Fields }}
 {{ if (and .Optional .Default) }}
-var {{ $struct.Name }}_{{ .Name }}_DEFAULT = {{ formatValue .Default }}
+var {{ fieldName $struct.Name }}_{{ fieldName .Name }}_DEFAULT {{ formatType .Type }} = {{ formatValue .Default }}
 {{ end }}
 {{ end }}
 
-type {{ $struct.Name }} struct { {{ range $struct.Fields }}
+type {{ fieldName $struct.Name }} struct { {{ range $struct.Fields }}
 	{{ fieldName .Name }} {{ if (and .Optional (not .Default)) }}*{{ end }}{{ formatType .Type }}` +
 	" `thrift:\"{{ .Name }},{{ .ID }},{{ .Requiredness }}\" json:\"{{ toSnakeCase .Name }}{{ if .Optional }},omitempty{{ end }}\"` " +
 `	{{ end }}
 }
 
-func New{{ $struct.Name }}() *{{ $struct.Name }} {
-	return &{{ $struct.Name }}{
+func New{{ fieldName $struct.Name }}() *{{ fieldName $struct.Name }} {
+	return &{{ fieldName $struct.Name }}{
 	{{ range $struct.Fields }}
 	{{ if (and .Optional .Default) }}
-	{{ .Name }} : {{ $struct.Name }}_{{ .Name }}_DEFAULT,
+	{{ fieldName .Name }} : {{ fieldName $struct.Name }}_{{ fieldName .Name }}_DEFAULT,
 	{{ end }}
 	{{ end }}
 	}
@@ -184,6 +184,11 @@ func (h {{ $svc.Name }}Server) Process(ctx context.Context, reader *thrifter.Dec
 	go func() {
 		defer wg.Done()
 		for req := range ch {
+			var rspHeader = protocol.MessageHeader{
+				MessageType: protocol.MessageTypeReply,
+				SeqId:       req.header.SeqId,
+			}
+			var rspBody interface{}
 			switch req.header.MessageName {
 			{{ range $meth := $svc.Methods }}
 			case "{{ $meth.Name }}":
@@ -192,24 +197,18 @@ func (h {{ $svc.Name }}Server) Process(ctx context.Context, reader *thrifter.Dec
 				h.handler.{{ $meth.Name }}(ctx, {{ range $meth.Arguments }}args.{{ fieldName .Name }}, {{ end }} )
 				continue
 			{{ else if (eq $meth.ReturnType.Name "void" ) }}
+				result := New{{ $svc.Name }}{{ $meth.Name }}Result()
 				err := h.handler.{{ $meth.Name }}(ctx, {{ range $meth.Arguments }}args.{{ fieldName .Name }}, {{ end }} )
-				result := New{{ $svc.Name }}{{ $meth.Name }}Result()
 			{{ else }}
-				ret, err := h.handler.{{ $meth.Name }}(ctx, {{ range $meth.Arguments }}args.{{ fieldName .Name }}, {{ end }} )
 				result := New{{ $svc.Name }}{{ $meth.Name }}Result()
+				ret, err := h.handler.{{ $meth.Name }}(ctx, {{ range $meth.Arguments }}args.{{ fieldName .Name }}, {{ end }} )
 				if ret != nil {
 					result.Success = ret
 				}
 			{{ end }}
 			{{ if (not $meth.Oneway) }}
-				var rspHeader = protocol.MessageHeader{
-					MessageName: "{{ $meth.Name }}",
-					MessageType: protocol.MessageTypeReply,
-					SeqId:       req.header.SeqId,
-				}
-
-				var rspBody interface{} = result
-
+				rspHeader.MessageName = "{{ $meth.Name }}"
+				rspBody = result
 				if err != nil {
 					switch e := err.(type) {
 					{{ if $meth.Exceptions }} {{ range $exc := $meth.Exceptions }}
@@ -221,17 +220,16 @@ func (h {{ $svc.Name }}Server) Process(ctx context.Context, reader *thrifter.Dec
 						rspBody = thrift.NewApplicationExceptionFromError(e)
 					}
 				}
-
-				if err = writer.EncodeMessageHeader(rspHeader); err != nil {
-					// TODO: log ?
-					return
-				}
-				if err = writer.Encode(rspBody); err != nil {
-					// TODO: log ?
-					return
-				}
 			{{ end }}
 			{{ end }}
+			}
+			if err := writer.EncodeMessageHeader(rspHeader); err != nil {
+				// TODO: log ?
+				return
+			}
+			if err := writer.Encode(rspBody); err != nil {
+				// TODO: log ?
+				return
 			}
 		}
 	}()

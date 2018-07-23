@@ -72,7 +72,7 @@ func (p *Package) Includes() []include {
 
 func (p *Package) Generate() error {
 	outDir := filepath.Join(p.G.Output, filepath.Join(strings.Split(p.fullname(), ".")...))
-	if err := os.MkdirAll(outDir, 0644); err != nil && !os.IsExist(err) {
+	if err := os.MkdirAll(outDir, 0755); err != nil && !os.IsExist(err) {
 		return err
 	}
 	outfile, err := filepath.Abs(filepath.Join(outDir, p.RefName+".thrift.go"))
@@ -80,9 +80,17 @@ func (p *Package) Generate() error {
 		return err
 	}
 
-	code, err := p.generate()
+	code, err := p.gencode()
 	if err != nil {
 		return err
+	}
+	formattedCode, err := format.Source(code)
+	if err != nil {
+		if !p.G.DebugMode {
+			return err
+		}
+	} else {
+		code = formattedCode
 	}
 	if err = ioutil.WriteFile(outfile, code, 0644); err != nil {
 		return err
@@ -91,7 +99,7 @@ func (p *Package) Generate() error {
 	return nil
 }
 
-func (p *Package) generate() ([]byte, error) {
+func (p *Package) gencode() ([]byte, error) {
 	var buf bytes.Buffer
 	var err error
 	var funcMap = p.G.funcMap()
@@ -130,21 +138,16 @@ func (p *Package) generate() ([]byte, error) {
 		return nil, err
 	}
 
-	code := buf.Bytes()
-	if codeFormatted, err := format.Source(code); err != nil {
-		fmt.Fprintln(os.Stderr, "format:", err)
-		return nil, err
-	} else {
-		code = codeFormatted
-	}
-	return code, nil
+	return buf.Bytes(), nil
 }
 
 type Generator struct {
-	Filename     string
-	Prefix       string
-	Output       string
+	Filename string
+	Prefix   string
+	Output   string
+
 	GenAll       bool
+	DebugMode    bool
 	RootPkg      *Package
 	ImportedPkgs map[string]*Package // key: absolute path to thrift file
 }
@@ -233,8 +236,15 @@ func (g *Generator) funcMap() template.FuncMap {
 func (g *Generator) formatValue(value interface{}) (string, error) {
 	switch v := value.(type) {
 	case parser.ConstValue:
-		if v.Type == parser.ConstTypeLiteral {
+		switch v.Type {
+		case parser.ConstTypeLiteral:
 			return fmt.Sprintf("%q", v.Value), nil
+		case parser.ConstTypeIdentifier:
+			ss := strings.Split(v.Value, ".")
+			if len(ss) <= 2 {
+				return v.Value, nil
+			}
+			return strings.Join(ss[0:len(ss)-1], ".") + "_" + ss[len(ss)-1], nil
 		}
 		return v.Value, nil
 	case []interface{}:
