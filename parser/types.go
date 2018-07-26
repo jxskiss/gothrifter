@@ -95,6 +95,8 @@ type ConstValue struct {
 	Value string
 }
 
+type ListConstValue []interface{}
+
 type MapConstValue struct {
 	// for const map value
 	Key, Value interface{}
@@ -103,7 +105,7 @@ type MapConstValue struct {
 type Constant struct {
 	Name  string
 	Type  *Type
-	Value interface{}
+	Value interface{} // ConstValue, ListConstValue or []MapConstValue
 }
 
 type Field struct {

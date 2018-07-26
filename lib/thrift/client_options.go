@@ -12,6 +12,8 @@ type clientOpts struct {
 	rTimeout    time.Duration
 	wTimeout    time.Duration
 	idleTimeout time.Duration
+
+	tFactory TransportFactory
 }
 
 func WithMaxAge(t time.Duration) ClientOption {
@@ -46,6 +48,18 @@ func WithTimeout(rTimeout, wTimeout time.Duration) ClientOption {
 func WithIdleTimeout(timeout time.Duration) ClientOption {
 	return func(opts clientOpts) clientOpts {
 		opts.idleTimeout = timeout
+		return opts
+	}
+}
+
+func WithTransportFactory(tFactory TransportFactory) ClientOption {
+	return func(opts clientOpts) clientOpts {
+		switch tFactory.(type) {
+		case *transportFactory, *BufferedTransportFactory:
+			// pass
+		default:
+			opts.tFactory = tFactory
+		}
 		return opts
 	}
 }

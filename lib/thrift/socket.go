@@ -63,6 +63,7 @@ func NewSocketFromConnTimeout(conn net.Conn, timeout time.Duration) *Socket {
 }
 
 // Sets the socket timeout
+// TODO: document timeout option, which is managed by Conn interface.
 func (p *Socket) SetTimeout(timeout time.Duration) error {
 	p.timeout = timeout
 	return nil
@@ -138,7 +139,7 @@ func (p *Socket) Read(buf []byte) (int, error) {
 	if !p.IsOpen() {
 		return 0, NewTransportException(NOT_OPEN, "Connection not open")
 	}
-	p.pushDeadline(true, false)
+	//p.pushDeadline(true, false)
 	n, err := p.conn.Read(buf)
 	return n, NewTransportExceptionFromError(err)
 }
@@ -147,7 +148,7 @@ func (p *Socket) Write(buf []byte) (int, error) {
 	if !p.IsOpen() {
 		return 0, NewTransportException(NOT_OPEN, "Connection not open")
 	}
-	p.pushDeadline(false, true)
+	//p.pushDeadline(false, true)
 	return p.conn.Write(buf)
 }
 

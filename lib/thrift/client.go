@@ -2,6 +2,7 @@ package thrift
 
 import (
 	"context"
+	"io"
 	"sync"
 
 	"github.com/thrift-iterator/go"
@@ -50,6 +51,13 @@ func (cli *client) Invoke(ctx context.Context, method string, arg, ret interface
 		return err
 	}
 
+	// TODO: SSL
+	var transport io.ReadWriter = conn
+	if cli.opts.tFactory != nil {
+		socket := NewSocketFromConnTimeout(conn, 0)
+		transport = cli.opts.tFactory.GetTransport(socket)
+	}
+
 	if ctx.Done() != nil {
 		var wg sync.WaitGroup
 		ch := make(chan struct{})
@@ -73,7 +81,7 @@ func (cli *client) Invoke(ctx context.Context, method string, arg, ret interface
 		MessageType: protocol.MessageTypeCall,
 		SeqId:       seqId,
 	}
-	encoder := thrifter.NewEncoder(conn)
+	encoder := thrifter.NewEncoder(transport)
 	if err = encoder.EncodeMessageHeader(reqHeader); err != nil {
 		if conn.IsReused() && err == errPeerClosed {
 			// retry on reused & peer closed connection
@@ -94,7 +102,7 @@ func (cli *client) Invoke(ctx context.Context, method string, arg, ret interface
 	}
 
 	// Read response.
-	decoder := thrifter.NewDecoder(conn, nil)
+	decoder := thrifter.NewDecoder(transport, nil)
 	rspHeader, err := decoder.DecodeMessageHeader()
 	if err != nil {
 		if conn.IsReused() && err == errPeerClosed {

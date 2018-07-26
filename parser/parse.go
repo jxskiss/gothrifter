@@ -128,17 +128,20 @@ func (p *Thrift) parseContainerType(node *node32) *Type {
 	node = assertRule(node, ruleContainerType)
 	// MapType / SetType / ListType
 	switch node.pegRule {
-	case ruleMapType: // MAP CppType? LPOINT FieldType COMMA FieldType RPOINT
+	case ruleMapType:
+		// MAP CppType? LPOINT FieldType COMMA FieldType RPOINT
 		node = node.up.next.next
 		kt := p.parseFieldType(node)
 		node = node.next.next
 		vt := p.parseFieldType(node)
 		return &Type{Name: "map", Category: TypeContainer, KeyType: kt, ValueType: vt}
-	case ruleSetType: // SET CppType? LPOINT FieldType RPOINT
+	case ruleSetType:
+		// SET CppType? LPOINT FieldType RPOINT
 		node = node.up.next.next
 		vt := p.parseFieldType(node)
 		return &Type{Name: "set", Category: TypeContainer, ValueType: vt}
-	case ruleListType: // LIST LPOINT FieldType RPOINT CppType?
+	case ruleListType:
+		// LIST LPOINT FieldType RPOINT CppType?
 		node = node.up.next.next
 		vt := p.parseFieldType(node)
 		return &Type{Name: "list", Category: TypeContainer, ValueType: vt}
@@ -160,7 +163,7 @@ func (p *Thrift) parseConstValue(node *node32) interface{} {
 	case ruleIdentifier:
 		return ConstValue{Type: ConstTypeIdentifier, Value: p.parsePegText(node)}
 	case ruleConstList:
-		var ret []interface{}
+		var ret ListConstValue
 		for n := node.up; n != nil; n = n.next {
 			if n.pegRule == ruleConstValue {
 				ret = append(ret, p.parseConstValue(n))
@@ -323,6 +326,7 @@ func (p *Thrift) parseFieldReqOptional(node *node32) (string, bool) {
 	}
 }
 
+// TODO: extends
 func (p *Thrift) parseService(node *node32) *Service {
 	node = assertRule(node, ruleService)
 	// SERVICE Identifier ( EXTENDS Identifier )? LWING Function* RWING

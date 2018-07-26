@@ -86,6 +86,7 @@ func (p *Package) Generate() error {
 	}
 	formattedCode, err := format.Source(code)
 	if err != nil {
+		log.Println("format:", err)
 		if !p.G.DebugMode {
 			return err
 		}
@@ -228,7 +229,7 @@ func (g *Generator) funcMap() template.FuncMap {
 		"formatValue":     g.formatValue,
 		"formatType":      g.formatType,
 		"formatArguments": g.formatArguments,
-		"fieldName":       ToCamelCase,
+		"toCamelCase":     ToCamelCase,
 		"toSnakeCase":     ToSnakeCase,
 	}
 }
@@ -247,12 +248,30 @@ func (g *Generator) formatValue(value interface{}) (string, error) {
 			return strings.Join(ss[0:len(ss)-1], ".") + "_" + ss[len(ss)-1], nil
 		}
 		return v.Value, nil
-	case []interface{}:
-		// TODO
-		return "TODO", nil
-	case parser.MapConstValue:
-		// TODO
-		return "TODO", nil
+	case parser.ListConstValue:
+		values := make([]string, len(v))
+		for i, item := range v {
+			v, vErr := g.formatValue(item)
+			if vErr != nil {
+				return "", vErr
+			}
+			values[i] = v
+		}
+		return fmt.Sprintf("{%v}", strings.Join(values, ", ")), nil
+	case []parser.MapConstValue:
+		kvs := make([]string, len(v))
+		for i, item := range v {
+			k, kErr := g.formatValue(item.Key)
+			if kErr != nil {
+				return "", kErr
+			}
+			v, vErr := g.formatValue(item.Value)
+			if vErr != nil {
+				return "", vErr
+			}
+			kvs[i] = fmt.Sprintf("%v: %v", k, v)
+		}
+		return fmt.Sprintf("{%v}", strings.Join(kvs, ", ")), nil
 	default:
 		return "", fmt.Errorf("undefined const type: %t", v)
 	}
@@ -330,7 +349,7 @@ func (g *Generator) formatArguments(svc *parser.Service) (string, error) {
 	for _, method := range svc.Methods {
 		// arguments
 		s := &parser.Struct{
-			Name:   svc.Name + method.Name + "Args",
+			Name:   svc.Name + ToCamelCase(method.Name) + "Args",
 			Fields: make([]*parser.Field, 0, len(method.Arguments)),
 		}
 		for _, f := range method.Arguments {
@@ -347,7 +366,7 @@ func (g *Generator) formatArguments(svc *parser.Service) (string, error) {
 			continue
 		}
 		s = &parser.Struct{
-			Name:   svc.Name + method.Name + "Result",
+			Name:   svc.Name + ToCamelCase(method.Name) + "Result",
 			Fields: make([]*parser.Field, 0),
 		}
 		if method.ReturnType.Name != "void" {

@@ -59,7 +59,7 @@ const (
 
 {{ range .Constants }}
 {{ if (eq .Type.Category "container") }}
-var {{ .Name }} = {{ formatValue .Value }}
+var {{ .Name }} = {{ formatType .Type }}{{ formatValue .Value }}
 {{ else }}
 const {{ .Name }} {{ formatType .Type }} = {{ formatValue .Value }}
 {{ end }}
@@ -76,22 +76,35 @@ const structsTmpl = `
 {{ range $struct := .Structs }}
 
 {{ range $struct.Fields }}
-{{ if (and .Optional .Default) }}
-var {{ fieldName $struct.Name }}_{{ fieldName .Name }}_DEFAULT {{ formatType .Type }} = {{ formatValue .Default }}
+{{ if (and .Default (not (eq .Type.Category "container") ) ) }}
+var {{ toCamelCase $struct.Name }}_{{ toCamelCase .Name }}_DEFAULT {{ formatType .Type }} = {{ formatValue .Default }}
 {{ end }}
 {{ end }}
 
-type {{ fieldName $struct.Name }} struct { {{ range $struct.Fields }}
-	{{ fieldName .Name }} {{ if (and .Optional (not .Default)) }}*{{ end }}{{ formatType .Type }}` +
-	" `thrift:\"{{ .Name }},{{ .ID }},{{ .Requiredness }}\" json:\"{{ toSnakeCase .Name }}{{ if .Optional }},omitempty{{ end }}\"` " +
+type {{ toCamelCase $struct.Name }} struct { {{ range $struct.Fields }}
+	{{ toCamelCase .Name }} {{ if (and .Optional (not .Default)) }}*{{ end }}{{ formatType .Type }}` +
+	" `thrift:\"{{ .Name }},{{ .ID }}{{ if (not (eq .Requiredness \"default\") ) }},{{ .Requiredness }}{{ end }}\"" +
+	" json:\"{{ toSnakeCase .Name }}{{ if .Optional }},omitempty{{ end }}\"` " +
 `	{{ end }}
 }
 
-func New{{ fieldName $struct.Name }}() *{{ fieldName $struct.Name }} {
-	return &{{ fieldName $struct.Name }}{
+func (p {{ toCamelCase $struct.Name }}) MarshalThrift() ([]byte, error) {
+	return thrifter.Marshal(p)
+}
+
+func (p *{{ toCamelCase $struct.Name }}) UnmarshalThrift(data []byte) error {
+	return thrifter.Unmarshal(data, p)
+}
+
+func New{{ toCamelCase $struct.Name }}() *{{ toCamelCase $struct.Name }} {
+	return &{{ toCamelCase $struct.Name }}{
 	{{ range $struct.Fields }}
-	{{ if (and .Optional .Default) }}
-	{{ fieldName .Name }} : {{ fieldName $struct.Name }}_{{ fieldName .Name }}_DEFAULT,
+	{{ if  .Default }}
+	{{ if (eq .Type.Category "container") }}
+	{{ toCamelCase .Name}} : {{ formatType .Type }}{{ formatValue .Default }},
+	{{ else }}
+	{{ toCamelCase .Name }} : {{ toCamelCase $struct.Name }}_{{ toCamelCase .Name }}_DEFAULT,
+	{{ end }}
 	{{ end }}
 	{{ end }}
 	}
@@ -120,32 +133,32 @@ func New{{ $svc.Name }}Client(cli thrift.Client) *{{ $svc.Name }}Client {
 }
 
 {{ range $meth := $svc.Methods }}
-func (cli *{{ $svc.Name }}Client) {{ $meth.Name }}(ctx context.Context,
+func (cli *{{ $svc.Name }}Client) {{ toCamelCase $meth.Name }}(ctx context.Context,
 	{{ range $meth.Arguments }}{{ .Name }} {{ if (eq .Type.Category "identifier") }}*{{ end }}{{ formatType .Type }}, {{ end }}
 	) ( {{ if (not (or $meth.Oneway (eq $meth.ReturnType.Name "void"))) }} *{{ formatType $meth.ReturnType }}, {{ end }} error) {
-	args := &{{ $svc.Name }}{{ $meth.Name }}Args{
+	args := &{{ $svc.Name }}{{ toCamelCase $meth.Name }}Args{
 		{{ range $meth.Arguments }}
-		{{ fieldName .Name }}: {{ .Name }},
+		{{ toCamelCase .Name }}: {{ .Name }},
 		{{ end }}
 	}
 	{{ if $meth.Oneway }}
-	err := cli.Client.Invoke(ctx, "{{ $meth.Name }}", args, nil)
+	err := cli.Client.Invoke(ctx, "{{ toCamelCase $meth.Name }}", args, nil)
 	return err
 	{{ else if (eq $meth.ReturnType.Name "void") }}
-	result := New{{ $svc.Name }}{{ $meth.Name }}Result()
-	err := cli.Client.Invoke(ctx, "{{ $meth.Name }}", args, result)
+	result := New{{ $svc.Name }}{{ toCamelCase $meth.Name }}Result()
+	err := cli.Client.Invoke(ctx, "{{ toCamelCase $meth.Name }}", args, result)
 	return err
 	{{ else }}
-	result := New{{ $svc.Name }}{{ $meth.Name }}Result()
-	err := cli.Client.Invoke(ctx, "{{ $meth.Name }}", args, result)
+	result := New{{ $svc.Name }}{{ toCamelCase $meth.Name }}Result()
+	err := cli.Client.Invoke(ctx, "{{ toCamelCase $meth.Name }}", args, result)
 	if err != nil {
 		return nil, err
 	}
 
 	{{ if $meth.Exceptions }}
 	{{ range $exc := $meth.Exceptions }}
-	if result.{{ fieldName $exc.Name }} != nil {
-		return nil, result.{{ fieldName $exc.Name }}
+	if result.{{ toCamelCase $exc.Name }} != nil {
+		return nil, result.{{ toCamelCase $exc.Name }}
 	}
 	{{ end }}
 	{{ end }}
@@ -157,7 +170,7 @@ func (cli *{{ $svc.Name }}Client) {{ $meth.Name }}(ctx context.Context,
 
 type {{ $svc.Name }}Handler interface {
 	{{ range $meth := $svc.Methods }}
-	{{ $meth.Name }}(ctx context.Context, {{ range $meth.Arguments }}{{ .Name }} {{ if (eq .Type.Category "identifier") }}*{{ end }}{{ formatType .Type }}, {{ end }} ) (
+	{{ toCamelCase $meth.Name }}(ctx context.Context, {{ range $meth.Arguments }}{{ .Name }} {{ if (eq .Type.Category "identifier") }}*{{ end }}{{ formatType .Type }}, {{ end }} ) (
 		{{ if (not $meth.Oneway) }}{{ if (not (eq $meth.ReturnType.Name "void")) }} *{{ formatType $meth.ReturnType }}, {{ end }} error {{ end }})
 	{{ end }}
 }
@@ -186,49 +199,52 @@ func (h {{ $svc.Name }}Server) Process(ctx context.Context, reader *thrifter.Dec
 		for req := range ch {
 			var rspHeader = protocol.MessageHeader{
 				MessageType: protocol.MessageTypeReply,
+				MessageName: req.header.MessageName,
 				SeqId:       req.header.SeqId,
 			}
 			var rspBody interface{}
 			switch req.header.MessageName {
 			{{ range $meth := $svc.Methods }}
-			case "{{ $meth.Name }}":
-				args := req.args.(*{{ $svc.Name }}{{ $meth.Name }}Args)
+			case "{{ toCamelCase $meth.Name }}":
+			{{ if $meth.Arguments }} args := req.args.(*{{ $svc.Name }}{{ toCamelCase $meth.Name }}Args) {{ end }}
 			{{ if $meth.Oneway }}
-				h.handler.{{ $meth.Name }}(ctx, {{ range $meth.Arguments }}args.{{ fieldName .Name }}, {{ end }} )
+				h.handler.{{ toCamelCase $meth.Name }}(ctx, {{ range $meth.Arguments }}args.{{ toCamelCase .Name }}, {{ end }} )
 				continue
 			{{ else if (eq $meth.ReturnType.Name "void" ) }}
-				result := New{{ $svc.Name }}{{ $meth.Name }}Result()
-				err := h.handler.{{ $meth.Name }}(ctx, {{ range $meth.Arguments }}args.{{ fieldName .Name }}, {{ end }} )
+				result := New{{ $svc.Name }}{{ toCamelCase $meth.Name }}Result()
+				err := h.handler.{{ toCamelCase $meth.Name }}(ctx, {{ range $meth.Arguments }}args.{{ toCamelCase .Name }}, {{ end }} )
 			{{ else }}
-				result := New{{ $svc.Name }}{{ $meth.Name }}Result()
-				ret, err := h.handler.{{ $meth.Name }}(ctx, {{ range $meth.Arguments }}args.{{ fieldName .Name }}, {{ end }} )
+				result := New{{ $svc.Name }}{{ toCamelCase $meth.Name }}Result()
+				ret, err := h.handler.{{ toCamelCase $meth.Name }}(ctx, {{ range $meth.Arguments }}args.{{ toCamelCase .Name }}, {{ end }} )
 				if ret != nil {
 					result.Success = ret
 				}
 			{{ end }}
 			{{ if (not $meth.Oneway) }}
-				rspHeader.MessageName = "{{ $meth.Name }}"
 				rspBody = result
 				if err != nil {
+					{{ if $meth.Exceptions }}
 					switch e := err.(type) {
-					{{ if $meth.Exceptions }} {{ range $exc := $meth.Exceptions }}
+					{{ range $exc := $meth.Exceptions }}
 					case *{{ formatType $exc.Type }}:
-						result.{{ fieldName $exc.Name }} = e {{ end }}
-					{{ end }}
+						result.{{ toCamelCase $exc.Name }} = e {{ end }}
 					default:
 						rspHeader.MessageType = protocol.MessageTypeException
 						rspBody = thrift.NewApplicationExceptionFromError(e)
 					}
+					{{ else }}
+					rspHeader.MessageType = protocol.MessageTypeException
+					rspBody = thrift.NewApplicationExceptionFromError(err)
+					{{ end }}
 				}
 			{{ end }}
 			{{ end }}
 			}
+			// TODO: log or something?
 			if err := writer.EncodeMessageHeader(rspHeader); err != nil {
-				// TODO: log ?
 				return
 			}
 			if err := writer.Encode(rspBody); err != nil {
-				// TODO: log ?
 				return
 			}
 		}
@@ -245,8 +261,8 @@ func (h {{ $svc.Name }}Server) Process(ctx context.Context, reader *thrifter.Dec
 		var req = request{header: reqHeader}
 		switch reqHeader.MessageName {
 		{{ range $meth := $svc.Methods }}
-		case "{{ $meth.Name }}":
-			req.args = New{{ $svc.Name }}{{ $meth.Name }}Args()
+		case "{{ toCamelCase $meth.Name }}":
+			req.args = New{{ $svc.Name }}{{ toCamelCase $meth.Name }}Args()
 		{{ end }}
 		default:
 			return thrift.ErrUnknownFunction

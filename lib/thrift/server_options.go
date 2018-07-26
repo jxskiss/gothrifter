@@ -39,22 +39,28 @@ type serverOpts struct {
 // TransportFactories sets both input and output transport factories
 func TransportFactories(factory TransportFactory) func(*serverOpts) {
 	return func(opts *serverOpts) {
-		opts.inputTransportFactory = factory
-		opts.outputTransportFactory = factory
+		if _, ok := factory.(*BufferedTransportFactory); !ok {
+			opts.inputTransportFactory = factory
+			opts.outputTransportFactory = factory
+		}
 	}
 }
 
 // InputTransportFactory sets the input transport factory
 func InputTransportFactory(factory TransportFactory) func(*serverOpts) {
 	return func(opts *serverOpts) {
-		opts.inputTransportFactory = factory
+		if _, ok := factory.(*BufferedTransportFactory); !ok {
+			opts.inputTransportFactory = factory
+		}
 	}
 }
 
 // OutputTransportFactory sets the output transport factory
 func OutputTransportFactory(factory TransportFactory) func(*serverOpts) {
 	return func(opts *serverOpts) {
-		opts.outputTransportFactory = factory
+		if _, ok := factory.(*BufferedTransportFactory); !ok {
+			opts.outputTransportFactory = factory
+		}
 	}
 }
 
