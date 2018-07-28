@@ -41,10 +41,6 @@ type Pool interface {
 	Take(ctx context.Context, address string) (Conn, error)
 }
 
-type Peer interface {
-	Take(ctx context.Context) (Conn, error)
-}
-
 type Conn interface {
 	net.Conn
 	SetTimeout(t time.Duration) error
@@ -76,7 +72,7 @@ func (p *pool) Take(ctx context.Context, address string) (Conn, error) {
 	var pp *peer
 	if x, ok := p.peers.Load(address); ok {
 		pp = x.(*peer)
-		return pp.Take(ctx)
+		return pp.take(ctx)
 	}
 
 	pp = &peer{
@@ -89,7 +85,7 @@ func (p *pool) Take(ctx context.Context, address string) (Conn, error) {
 	if x, loaded := p.peers.LoadOrStore(address, pp); loaded {
 		pp = x.(*peer)
 	}
-	return pp.Take(ctx)
+	return pp.take(ctx)
 }
 
 type peer struct {
@@ -100,13 +96,13 @@ type peer struct {
 	active int32 // atomic
 }
 
-func (p *peer) Take(ctx context.Context) (Conn, error) {
+func (p *peer) take(ctx context.Context) (Conn, error) {
 	select {
 	case conn := <-p.free:
 		if conn.isExpired() {
 			atomic.AddInt32(&p.active, -1)
 			conn.Conn.Close()
-			return p.Take(ctx)
+			return p.take(ctx)
 		}
 		return conn, nil
 	default:
@@ -124,7 +120,7 @@ func (p *peer) Take(ctx context.Context) (Conn, error) {
 		atomic.AddInt32(&p.active, -1)
 		return nil, err
 	}
-	conn := newConn(netConn, p)
+	conn := newClientconn(netConn, p)
 	return conn, err
 }
 
@@ -135,7 +131,9 @@ func (p *peer) put(conn *clientconn) error {
 			return conn.Conn.Close()
 		}
 	}
-	conn.idleTimeoutAt = time.Now().Add(p.pool.opts.idleTimeout)
+	if p.pool.opts.idleTimeout > 0 {
+		conn.idleTimeoutAt = time.Now().Add(p.pool.opts.idleTimeout)
+	}
 	select {
 	case p.free <- conn:
 		return nil
@@ -161,7 +159,7 @@ type clientconn struct {
 	seq      int32 // atomic
 }
 
-func newConn(conn net.Conn, peer *peer) *clientconn {
+func newClientconn(conn net.Conn, peer *peer) *clientconn {
 	opts := peer.pool.opts
 	cc := &clientconn{
 		Conn:     conn,
@@ -253,18 +251,22 @@ func (c *clientconn) SetTimeout(t time.Duration) (err error) {
 }
 
 func (c *clientconn) SetReadTimeout(t time.Duration) (err error) {
-	if c.rTimeout != t && t == 0 { // reset to no timeout
-		return c.SetReadDeadline(time.Time{})
+	if c.rTimeout != t {
+		if t == 0 { // reset to no timeout
+			return c.SetReadDeadline(time.Time{})
+		}
+		c.rTimeout = t
 	}
-	c.rTimeout = t
 	return nil
 }
 
 func (c *clientconn) SetWriteTimeout(t time.Duration) error {
-	if c.wTimeout != t && t == 0 { // reset to no timeout
-		return c.SetWriteDeadline(time.Time{})
+	if c.wTimeout != t {
+		if t == 0 { // reset to no timeout
+			return c.SetWriteDeadline(time.Time{})
+		}
+		c.wTimeout = t
 	}
-	c.wTimeout = t
 	return nil
 }
 

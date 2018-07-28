@@ -15,6 +15,5 @@ var (
 
 	errTooManyConn = errors.New("thrift: too many connections")
 	errPeerClosed  = errors.New("thrift: peer closed")
-	errClosed      = errors.New("thrift: conn closed")
-	errWorking     = errors.New("thrift: working")
+	errConnClosed  = errors.New("thrift: connection closed")
 )

@@ -5,7 +5,6 @@ import (
 	"io"
 	"sync"
 
-	"github.com/thrift-iterator/go"
 	"github.com/thrift-iterator/go/protocol"
 )
 
@@ -81,7 +80,7 @@ func (cli *client) Invoke(ctx context.Context, method string, arg, ret interface
 		MessageType: protocol.MessageTypeCall,
 		SeqId:       seqId,
 	}
-	encoder := thrifter.NewEncoder(transport)
+	encoder := cli.opts.tCfg.NewEncoder(transport)
 	if err = encoder.EncodeMessageHeader(reqHeader); err != nil {
 		if conn.IsReused() && err == errPeerClosed {
 			// retry on reused & peer closed connection
@@ -102,7 +101,7 @@ func (cli *client) Invoke(ctx context.Context, method string, arg, ret interface
 	}
 
 	// Read response.
-	decoder := thrifter.NewDecoder(transport, nil)
+	decoder := cli.opts.tCfg.NewDecoder(transport, nil)
 	rspHeader, err := decoder.DecodeMessageHeader()
 	if err != nil {
 		if conn.IsReused() && err == errPeerClosed {

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/thrift-iterator/go"
+	"github.com/thrift-iterator/go/protocol"
 )
 
 // ErrServerClosed is returned by the Serve methods after a call to Stop
@@ -115,12 +116,23 @@ func (p *Server) processRequests(client Transport) error {
 		defer outputTransport.Close()
 	}
 
-	reader := thrifter.NewDecoder(inputTransport, nil)
-	writer := thrifter.NewEncoder(outputTransport)
-	err := p.processor.Process(context.Background(), reader, writer)
+	var cfg = thrifter.DefaultConfig // binary protocol by default
+	var firstBytes = make([]byte, 1) // auto recognize compact protocol
+	_, err := inputTransport.Read(firstBytes)
+	if err != nil {
+		p.log.Printf("failed read first byte: %s", err)
+		return err
+	}
+	if firstBytes[0] == protocol.COMPACT_PROTOCOL_ID {
+		cfg = thrifter.Config{Protocol: thrifter.ProtocolCompact}.Froze()
+	}
+	reader := cfg.NewDecoder(inputTransport, firstBytes)
+	writer := cfg.NewEncoder(outputTransport)
+
+	err = p.processor.Process(context.Background(), reader, writer)
 	if err != nil && !strings.Contains(err.Error(), "EOF") {
 		// TODO: see fbthrift.Process(processor, inputProtocol, outputProtocol)
-		p.log.Printf("processing failure: %s", err)
+		p.log.Printf("failed process: %s", err)
 		return err
 	}
 

@@ -1,6 +1,9 @@
 package thrift
 
-import "time"
+import (
+	"github.com/thrift-iterator/go"
+	"time"
+)
 
 type ClientOption func(opts clientOpts) clientOpts
 
@@ -14,6 +17,7 @@ type clientOpts struct {
 	idleTimeout time.Duration
 
 	tFactory TransportFactory
+	tCfg     thrifter.API
 }
 
 func WithMaxAge(t time.Duration) ClientOption {
@@ -64,11 +68,26 @@ func WithTransportFactory(tFactory TransportFactory) ClientOption {
 	}
 }
 
+func WithCompactProtocol() ClientOption {
+	return func(opts clientOpts) clientOpts {
+		opts.tCfg = thrifter.Config{Protocol: thrifter.ProtocolCompact}.Froze()
+		return opts
+	}
+}
+
+func WithThrifterCfg(cfg thrifter.API) ClientOption {
+	return func(opts clientOpts) clientOpts {
+		opts.tCfg = cfg
+		return opts
+	}
+}
+
 func defaultClientOptions() clientOpts {
 	return clientOpts{
 		maxAge:    2 * time.Second,
 		maxIdle:   0, // no keepalive
 		maxActive: 10000,
+		tCfg:      thrifter.DefaultConfig, // binary protocol
 	}
 }
 
