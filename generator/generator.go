@@ -228,6 +228,7 @@ func (g *Generator) funcMap() template.FuncMap {
 	return template.FuncMap{
 		"formatValue":     g.formatValue,
 		"formatType":      g.formatType,
+		"formatReturn":    g.formatReturn,
 		"formatArguments": g.formatArguments,
 		"toCamelCase":     ToCamelCase,
 		"toSnakeCase":     ToSnakeCase,
@@ -332,16 +333,35 @@ func (g *Generator) formatType(typ *parser.Type) (string, error) {
 			if vt, err = g.formatType(typ.ValueType); err != nil {
 				return "", err
 			}
+			if typ.ValueType.Category == parser.TypeIdentifier {
+				vt = "*" + vt
+			}
 			return fmt.Sprintf("map[%v]%v", kt, vt), nil
 		case "list":
 			if vt, err = g.formatType(typ.ValueType); err != nil {
 				return "", err
+			}
+			if typ.ValueType.Category == parser.TypeIdentifier {
+				vt = "*" + vt
 			}
 			return fmt.Sprintf("[]%v", vt), nil
 		}
 	}
 
 	return typ.Name, nil
+}
+
+func (g *Generator) formatReturn(typ *parser.Type) (string, error) {
+	switch typ.Category {
+	case parser.TypeBasic, parser.TypeContainer:
+		return g.formatType(typ)
+	}
+
+	ret, err := g.formatType(typ)
+	if err != nil {
+		return "", err
+	}
+	return "*" + ret, nil
 }
 
 func (g *Generator) formatArguments(svc *parser.Service) (string, error) {
@@ -376,6 +396,10 @@ func (g *Generator) formatArguments(svc *parser.Service) (string, error) {
 				Type:         method.ReturnType,
 				Optional:     true,
 				Requiredness: parser.RequirednessOptional,
+			}
+			if r.Type.Category != parser.TypeIdentifier {
+				r.Optional = false
+				r.Requiredness = parser.RequirednessRequired
 			}
 			s.Fields = append(s.Fields, r)
 		}

@@ -98,7 +98,10 @@ func (p *FramedTransport) Read(buf []byte) (l int, err error) {
 	if p.frameSize < 0 {
 		return 0, NewTransportException(UNKNOWN_TRANSPORT_EXCEPTION, "Negative frame size")
 	}
-	return got, NewTransportExceptionFromError(err)
+	if err != nil {
+		err = NewTransportExceptionFromError(err)
+	}
+	return got, err
 }
 
 func (p *FramedTransport) ReadByte() (c byte, err error) {
@@ -120,7 +123,10 @@ func (p *FramedTransport) ReadByte() (c byte, err error) {
 
 func (p *FramedTransport) Write(buf []byte) (int, error) {
 	n, err := p.buf.Write(buf)
-	return n, NewTransportExceptionFromError(err)
+	if err != nil {
+		err = NewTransportExceptionFromError(err)
+	}
+	return n, err
 }
 
 func (p *FramedTransport) WriteByte(c byte) error {

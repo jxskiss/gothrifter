@@ -11,7 +11,7 @@ import (
 )
 
 // ErrServerClosed is returned by the Serve methods after a call to Stop
-var ErrServerClosed = errors.New("thrift: Server closed")
+var ErrServerClosed = errors.New("thrift: server closed")
 
 type Processor interface {
 	Process(ctx context.Context, reader *thrifter.Decoder, writer *thrifter.Encoder) error
@@ -60,7 +60,6 @@ func (p *Server) AcceptLoop() error {
 				return ErrServerClosed
 			default:
 			}
-			// TODO: is this returning OK?
 			return err
 		}
 		if client != nil {
@@ -100,26 +99,25 @@ func (p *Server) Stop() error {
 
 func (p *Server) processRequests(client Transport) error {
 	var inputTransport, outputTransport Transport
-	// TODO: Special case for HeaderTransport ?
 	inputTransport = p.inputTransportFactory.GetTransport(client)
 	outputTransport = p.outputTransportFactory.GetTransport(client)
 
 	defer func() {
+		if inputTransport != nil && inputTransport.IsOpen() {
+			inputTransport.Close()
+		}
+		if outputTransport != nil && outputTransport.IsOpen() {
+			outputTransport.Close()
+		}
 		if err := recover(); err != nil {
 			p.log.Printf("panic in processor: %v: %s", err, debug.Stack())
 		}
 	}()
-	if inputTransport != nil {
-		defer inputTransport.Close()
-	}
-	if outputTransport != nil {
-		defer outputTransport.Close()
-	}
 
+	var err error
 	var cfg = thrifter.DefaultConfig // binary protocol by default
 	var firstBytes = make([]byte, 1) // auto recognize compact protocol
-	_, err := inputTransport.Read(firstBytes)
-	if err != nil {
+	if _, err = inputTransport.Read(firstBytes); err != nil {
 		p.log.Printf("failed read first byte: %s", err)
 		return err
 	}
@@ -131,8 +129,7 @@ func (p *Server) processRequests(client Transport) error {
 
 	err = p.processor.Process(context.Background(), reader, writer)
 	if err != nil && !strings.Contains(err.Error(), "EOF") {
-		// TODO: see fbthrift.Process(processor, inputProtocol, outputProtocol)
-		p.log.Printf("failed process: %s", err)
+		p.log.Printf("failed process request: %s", err)
 		return err
 	}
 

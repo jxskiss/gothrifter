@@ -65,12 +65,6 @@ func (e *ApplicationException) Error() string {
 }
 
 // Protocol exception types.
-
-type ProtocolException interface {
-	Exception
-	TypeId() int
-}
-
 const (
 	UNKNOWN_PROTOCOL_EXCEPTION = 0
 	INVALID_DATA               = 1
@@ -80,6 +74,11 @@ const (
 	NOT_IMPLEMENTED            = 5
 	DEPTH_LIMIT                = 6
 )
+
+type ProtocolException interface {
+	Exception
+	TypeId() int
+}
 
 type protocolException struct {
 	typeId  int
@@ -113,17 +112,6 @@ func NewProtocolExceptionWithType(typeId int, err error) ProtocolException {
 }
 
 // Transport exception types.
-
-type timeoutable interface {
-	Timeout() bool
-}
-
-type TransportException interface {
-	Exception
-	TypeId() int
-	Err() error
-}
-
 const (
 	UNKNOWN_TRANSPORT_EXCEPTION = 0
 	NOT_OPEN                    = 1
@@ -142,9 +130,19 @@ const (
 	NETWORK_ERROR               = 15
 )
 
+type TransportException interface {
+	Exception
+	TypeId() int
+	Err() error
+}
+
 type transportException struct {
 	typeId int
 	err    error
+}
+
+type timeoutable interface {
+	Timeout() bool
 }
 
 func (e *transportException) Error() string { return e.err.Error() }

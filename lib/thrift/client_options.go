@@ -8,6 +8,8 @@ import (
 type ClientOption func(opts clientOpts) clientOpts
 
 type clientOpts struct {
+	maxFrameSize int // for framed transport
+
 	maxAge    time.Duration
 	maxIdle   int
 	maxActive int
@@ -18,6 +20,13 @@ type clientOpts struct {
 
 	tFactory TransportFactory
 	tCfg     thrifter.API
+}
+
+func WithMaxFrameSize(max int) ClientOption {
+	return func(opts clientOpts) clientOpts {
+		opts.maxFrameSize = max
+		return opts
+	}
 }
 
 func WithMaxAge(t time.Duration) ClientOption {

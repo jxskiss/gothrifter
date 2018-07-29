@@ -39,6 +39,8 @@ func NewTimeoutDialer(timeout time.Duration) Dialer {
 
 type Pool interface {
 	Take(ctx context.Context, address string) (Conn, error)
+	Put(conn Conn) error
+	Close() error
 }
 
 type Conn interface {
@@ -49,14 +51,15 @@ type Conn interface {
 
 	NextSequence() int32
 	IsReused() bool
-	Put() error
 }
 
 type pool struct {
-	dial  Dialer
-	peers sync.Map
-
+	dial Dialer
 	opts clientOpts
+
+	mu       sync.Mutex
+	peers    sync.Map
+	isClosed bool
 }
 
 func NewPool(dialer Dialer, opts ...ClientOption) Pool {
@@ -75,28 +78,51 @@ func (p *pool) Take(ctx context.Context, address string) (Conn, error) {
 		return pp.take(ctx)
 	}
 
+	p.mu.Lock()
 	pp = &peer{
 		pool:    p,
 		address: address,
 	}
-	if p.opts.maxIdle > 0 {
+	if p.opts.maxIdle > 0 && !p.isClosed {
 		pp.free = make(chan *clientconn, p.opts.maxIdle)
 	}
 	if x, loaded := p.peers.LoadOrStore(address, pp); loaded {
 		pp = x.(*peer)
 	}
+	p.mu.Unlock()
 	return pp.take(ctx)
+}
+
+func (p *pool) Put(conn Conn) error {
+	cc := conn.(*clientconn)
+	return cc.peer.put(cc)
+}
+
+func (p *pool) Close() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.isClosed {
+		return nil
+	}
+	p.isClosed = true
+	p.peers.Range(func(k, v interface{}) bool {
+		pp := v.(*peer)
+		pp.close()
+		return true
+	})
+	return nil
 }
 
 type peer struct {
 	pool    *pool
 	address string
 
+	mu     sync.RWMutex
 	free   chan *clientconn
 	active int32 // atomic
 }
 
-func (p *peer) take(ctx context.Context) (Conn, error) {
+func (p *peer) take(ctx context.Context) (*clientconn, error) {
 	select {
 	case conn := <-p.free:
 		if conn.isExpired() {
@@ -127,13 +153,11 @@ func (p *peer) take(ctx context.Context) (Conn, error) {
 func (p *peer) put(conn *clientconn) error {
 	if err := conn.getError(); err != nil {
 		atomic.AddInt32(&p.active, -1)
-		if conn.Conn != nil {
-			return conn.Conn.Close()
-		}
+		return conn.Conn.Close()
 	}
-	if p.pool.opts.idleTimeout > 0 {
-		conn.idleTimeoutAt = time.Now().Add(p.pool.opts.idleTimeout)
-	}
+	conn.usedAt = time.Now()
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	select {
 	case p.free <- conn:
 		return nil
@@ -143,42 +167,57 @@ func (p *peer) put(conn *clientconn) error {
 	}
 }
 
+func (p *peer) close() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.free == nil {
+		return nil
+	}
+	for {
+		select {
+		case conn := <-p.free:
+			if err := conn.Conn.Close(); err != nil {
+				// TODO
+			}
+		default:
+			p.free = nil
+			return nil
+		}
+	}
+}
+
 type clientconn struct {
 	net.Conn
-	peer *peer
+	peer      *peer
+	createdAt time.Time
+	usedAt    time.Time
+	seq       int32 // atomic
 
-	maxAgeAt      time.Time
-	idleTimeoutAt time.Time
-	rTimeout      time.Duration
-	wTimeout      time.Duration
+	rTimeout time.Duration
+	wTimeout time.Duration
 
 	mu  sync.Mutex
 	err error
-
-	isReused int32 // atomic
-	seq      int32 // atomic
 }
 
 func newClientconn(conn net.Conn, peer *peer) *clientconn {
 	opts := peer.pool.opts
 	cc := &clientconn{
-		Conn:     conn,
-		peer:     peer,
-		rTimeout: opts.rTimeout,
-		wTimeout: opts.wTimeout,
-	}
-	if opts.maxAge > 0 {
-		cc.maxAgeAt = time.Now().Add(opts.maxAge)
+		Conn:      conn,
+		peer:      peer,
+		createdAt: time.Now(),
+		rTimeout:  opts.rTimeout,
+		wTimeout:  opts.wTimeout,
 	}
 	return cc
 }
 
 func (c *clientconn) isExpired() bool {
 	now := time.Now()
-	if !c.maxAgeAt.IsZero() && now.After(c.maxAgeAt) {
+	if maxAge := c.peer.pool.opts.maxAge; maxAge > 0 && now.Sub(c.createdAt) > maxAge {
 		return true
 	}
-	if !c.idleTimeoutAt.IsZero() && now.After(c.idleTimeoutAt) {
+	if timeout := c.peer.pool.opts.idleTimeout; timeout > 0 && now.Sub(c.usedAt) > timeout {
 		return true
 	}
 	return false
@@ -189,7 +228,7 @@ func (c *clientconn) NextSequence() int32 {
 }
 
 func (c *clientconn) IsReused() bool {
-	return atomic.LoadInt32(&c.isReused) == 1
+	return !c.usedAt.IsZero()
 }
 
 func (c *clientconn) Read(b []byte) (n int, err error) {
@@ -203,8 +242,9 @@ func (c *clientconn) Read(b []byte) (n int, err error) {
 		if err == io.ErrClosedPipe || (n == 0 && err == io.EOF) {
 			err = errPeerClosed
 		}
+		c.setError(err)
 	}
-	return n, c.setError(err)
+	return n, err
 }
 
 func (c *clientconn) Write(b []byte) (n int, err error) {
@@ -218,29 +258,35 @@ func (c *clientconn) Write(b []byte) (n int, err error) {
 		if err == io.ErrClosedPipe || strings.Contains(err.Error(), "broken pipe") {
 			err = errPeerClosed
 		}
+		c.setError(err)
 	}
-	return n, c.setError(err)
-}
-
-func (c *clientconn) Put() error {
-	atomic.StoreInt32(&c.isReused, 1)
-	return c.peer.put(c)
+	return n, err
 }
 
 func (c *clientconn) Close() error {
-	return c.setError(c.Conn.Close())
+	c.setError(errConnClosed)
+	return c.Conn.Close()
 }
 
 func (c *clientconn) SetDeadline(t time.Time) (err error) {
-	return c.setError(c.Conn.SetDeadline(t))
+	if err = c.Conn.SetDeadline(t); err != nil {
+		c.setError(err)
+	}
+	return
 }
 
 func (c *clientconn) SetReadDeadline(t time.Time) (err error) {
-	return c.setError(c.Conn.SetReadDeadline(t))
+	if err = c.Conn.SetReadDeadline(t); err != nil {
+		c.setError(err)
+	}
+	return
 }
 
 func (c *clientconn) SetWriteDeadline(t time.Time) (err error) {
-	return c.setError(c.Conn.SetWriteDeadline(t))
+	if err = c.Conn.SetWriteDeadline(t); err != nil {
+		c.setError(err)
+	}
+	return
 }
 
 func (c *clientconn) SetTimeout(t time.Duration) (err error) {
@@ -270,13 +316,14 @@ func (c *clientconn) SetWriteTimeout(t time.Duration) error {
 	return nil
 }
 
-func (c *clientconn) setError(err error) error {
+func (c *clientconn) setError(err error) {
 	if err != nil {
 		c.mu.Lock()
-		c.err = err
+		if c.err == nil {
+			c.err = err
+		}
 		c.mu.Unlock()
 	}
-	return err
 }
 
 func (c *clientconn) getError() (err error) {

@@ -141,7 +141,10 @@ func (p *Socket) Read(buf []byte) (int, error) {
 	}
 	//p.pushDeadline(true, false)
 	n, err := p.conn.Read(buf)
-	return n, NewTransportExceptionFromError(err)
+	if err != nil {
+		err = NewTransportExceptionFromError(err)
+	}
+	return n, err
 }
 
 func (p *Socket) Write(buf []byte) (int, error) {

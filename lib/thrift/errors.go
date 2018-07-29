@@ -3,6 +3,7 @@ package thrift
 import "errors"
 
 var (
+	ErrMaxFrameSize    = errors.New("thrift: max frame size exceeded")
 	ErrMaxBufferLen    = errors.New("thrift: max buffer len exceeded")
 	ErrMaxMapElements  = errors.New("thrift: max map elements exceeded")
 	ErrMaxSetElements  = errors.New("thrift: max set elements exceeded")

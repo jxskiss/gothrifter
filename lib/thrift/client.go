@@ -10,6 +10,7 @@ import (
 
 type Client interface {
 	Invoke(ctx context.Context, method string, arg, ret interface{}, options ...CallOption) error
+	Close() error
 }
 
 type client struct {
@@ -37,7 +38,7 @@ func (cli *client) Invoke(ctx context.Context, method string, arg, ret interface
 	if err != nil {
 		return err
 	}
-	defer conn.Put()
+	defer cli.pool.Put(conn)
 
 	opts := defaultCallOptions(cli.opts)
 	for _, option := range options {
@@ -133,4 +134,8 @@ func (cli *client) Invoke(ctx context.Context, method string, arg, ret interface
 	}
 
 	return nil
+}
+
+func (cli *client) Close() error {
+	return cli.pool.Close()
 }

@@ -135,7 +135,7 @@ func New{{ $svc.Name }}Client(cli thrift.Client) *{{ $svc.Name }}Client {
 {{ range $meth := $svc.Methods }}
 func (cli *{{ $svc.Name }}Client) {{ toCamelCase $meth.Name }}(ctx context.Context,
 	{{ range $meth.Arguments }}{{ .Name }} {{ if (eq .Type.Category "identifier") }}*{{ end }}{{ formatType .Type }}, {{ end }}
-	) ( {{ if (not (or $meth.Oneway (eq $meth.ReturnType.Name "void"))) }} *{{ formatType $meth.ReturnType }}, {{ end }} error) {
+	) ( {{ if (not (or $meth.Oneway (eq $meth.ReturnType.Name "void"))) }} {{ formatReturn $meth.ReturnType }}, {{ end }} error) {
 	args := &{{ $svc.Name }}{{ toCamelCase $meth.Name }}Args{
 		{{ range $meth.Arguments }}
 		{{ toCamelCase .Name }}: {{ .Name }},
@@ -150,15 +150,16 @@ func (cli *{{ $svc.Name }}Client) {{ toCamelCase $meth.Name }}(ctx context.Conte
 	return err
 	{{ else }}
 	result := New{{ $svc.Name }}{{ toCamelCase $meth.Name }}Result()
+	zero := result.Success
 	err := cli.Client.Invoke(ctx, "{{ toCamelCase $meth.Name }}", args, result)
 	if err != nil {
-		return nil, err
+		return zero, err
 	}
 
 	{{ if $meth.Exceptions }}
 	{{ range $exc := $meth.Exceptions }}
 	if result.{{ toCamelCase $exc.Name }} != nil {
-		return nil, result.{{ toCamelCase $exc.Name }}
+		return zero, result.{{ toCamelCase $exc.Name }}
 	}
 	{{ end }}
 	{{ end }}
@@ -171,7 +172,7 @@ func (cli *{{ $svc.Name }}Client) {{ toCamelCase $meth.Name }}(ctx context.Conte
 type {{ $svc.Name }}Handler interface {
 	{{ range $meth := $svc.Methods }}
 	{{ toCamelCase $meth.Name }}(ctx context.Context, {{ range $meth.Arguments }}{{ .Name }} {{ if (eq .Type.Category "identifier") }}*{{ end }}{{ formatType .Type }}, {{ end }} ) (
-		{{ if (not $meth.Oneway) }}{{ if (not (eq $meth.ReturnType.Name "void")) }} *{{ formatType $meth.ReturnType }}, {{ end }} error {{ end }})
+		{{ if (not (or $meth.Oneway (eq $meth.ReturnType.Name "void"))) }} {{ formatReturn $meth.ReturnType }}, {{ end }} error)
 	{{ end }}
 }
 
@@ -208,7 +209,10 @@ func (h {{ $svc.Name }}Server) Process(ctx context.Context, reader *thrifter.Dec
 			case "{{ toCamelCase $meth.Name }}":
 			{{ if $meth.Arguments }} args := req.args.(*{{ $svc.Name }}{{ toCamelCase $meth.Name }}Args) {{ end }}
 			{{ if $meth.Oneway }}
-				h.handler.{{ toCamelCase $meth.Name }}(ctx, {{ range $meth.Arguments }}args.{{ toCamelCase .Name }}, {{ end }} )
+				err := h.handler.{{ toCamelCase $meth.Name }}(ctx, {{ range $meth.Arguments }}args.{{ toCamelCase .Name }}, {{ end }} )
+				if err != nil {
+					// TODO
+				}
 				continue
 			{{ else if (eq $meth.ReturnType.Name "void" ) }}
 				result := New{{ $svc.Name }}{{ toCamelCase $meth.Name }}Result()
@@ -216,9 +220,7 @@ func (h {{ $svc.Name }}Server) Process(ctx context.Context, reader *thrifter.Dec
 			{{ else }}
 				result := New{{ $svc.Name }}{{ toCamelCase $meth.Name }}Result()
 				ret, err := h.handler.{{ toCamelCase $meth.Name }}(ctx, {{ range $meth.Arguments }}args.{{ toCamelCase .Name }}, {{ end }} )
-				if ret != nil {
-					result.Success = ret
-				}
+				result.Success = ret
 			{{ end }}
 			{{ if (not $meth.Oneway) }}
 				rspBody = result
