@@ -2,6 +2,7 @@ package thrift
 
 import (
 	"context"
+	"crypto/tls"
 	"io"
 	"net"
 	"strings"
@@ -34,6 +35,12 @@ func NewTimeoutDialer(timeout time.Duration) Dialer {
 	return func(ctx context.Context, address string) (net.Conn, error) {
 		var d = net.Dialer{Timeout: timeout}
 		return d.DialContext(ctx, "tcp", address)
+	}
+}
+
+func NewTlsDialer(tlsCfg *tls.Config) Dialer {
+	return func(ctx context.Context, address string) (net.Conn, error) {
+		return tls.Dial("tcp", address, tlsCfg)
 	}
 }
 

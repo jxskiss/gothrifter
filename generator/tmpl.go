@@ -88,14 +88,6 @@ type {{ toCamelCase $struct.Name }} struct { {{ range $struct.Fields }}
 `	{{ end }}
 }
 
-func (p {{ toCamelCase $struct.Name }}) MarshalThrift() ([]byte, error) {
-	return thrifter.Marshal(p)
-}
-
-func (p *{{ toCamelCase $struct.Name }}) UnmarshalThrift(data []byte) error {
-	return thrifter.Unmarshal(data, p)
-}
-
 func New{{ toCamelCase $struct.Name }}() *{{ toCamelCase $struct.Name }} {
 	return &{{ toCamelCase $struct.Name }}{
 	{{ range $struct.Fields }}

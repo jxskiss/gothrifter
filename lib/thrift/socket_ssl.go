@@ -62,6 +62,7 @@ func NewSSLSocketFromConnTimeout(conn net.Conn, cfg *tls.Config, timeout time.Du
 }
 
 // Sets the socket timeout
+// TODO: document timeout option, which is managed by Conn interface.
 func (p *SSLSocket) SetTimeout(timeout time.Duration) error {
 	p.timeout = timeout
 	return nil
@@ -140,7 +141,7 @@ func (p *SSLSocket) Read(buf []byte) (int, error) {
 	if !p.IsOpen() {
 		return 0, NewTransportException(NOT_OPEN, "Connection not open")
 	}
-	p.pushDeadline(true, false)
+	//p.pushDeadline(true, false)
 	n, err := p.conn.Read(buf)
 	return n, NewTransportExceptionFromError(err)
 }
@@ -149,7 +150,7 @@ func (p *SSLSocket) Write(buf []byte) (int, error) {
 	if !p.IsOpen() {
 		return 0, NewTransportException(NOT_OPEN, "Connection not open")
 	}
-	p.pushDeadline(false, true)
+	//p.pushDeadline(false, true)
 	return p.conn.Write(buf)
 }
 

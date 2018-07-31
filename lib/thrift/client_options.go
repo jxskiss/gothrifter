@@ -18,8 +18,8 @@ type clientOpts struct {
 	wTimeout    time.Duration
 	idleTimeout time.Duration
 
-	tFactory TransportFactory
-	tCfg     thrifter.API
+	transportFactory TransportFactory
+	thrifterCfg      thrifter.API
 }
 
 func WithMaxFrameSize(max int) ClientOption {
@@ -71,7 +71,7 @@ func WithTransportFactory(tFactory TransportFactory) ClientOption {
 		case *transportFactory, *BufferedTransportFactory:
 			// pass
 		default:
-			opts.tFactory = tFactory
+			opts.transportFactory = tFactory
 		}
 		return opts
 	}
@@ -79,24 +79,24 @@ func WithTransportFactory(tFactory TransportFactory) ClientOption {
 
 func WithCompactProtocol() ClientOption {
 	return func(opts clientOpts) clientOpts {
-		opts.tCfg = thrifter.Config{Protocol: thrifter.ProtocolCompact}.Froze()
+		opts.thrifterCfg = thrifter.Config{Protocol: thrifter.ProtocolCompact}.Froze()
 		return opts
 	}
 }
 
 func WithThrifterCfg(cfg thrifter.API) ClientOption {
 	return func(opts clientOpts) clientOpts {
-		opts.tCfg = cfg
+		opts.thrifterCfg = cfg
 		return opts
 	}
 }
 
 func defaultClientOptions() clientOpts {
 	return clientOpts{
-		maxAge:    2 * time.Second,
-		maxIdle:   0, // no keepalive
-		maxActive: 10000,
-		tCfg:      thrifter.DefaultConfig, // binary protocol
+		maxAge:      2 * time.Second,
+		maxIdle:     0, // no keepalive
+		maxActive:   10000,
+		thrifterCfg: thrifter.DefaultConfig, // binary protocol
 	}
 }
 

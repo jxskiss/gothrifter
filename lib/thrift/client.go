@@ -51,11 +51,10 @@ func (cli *client) Invoke(ctx context.Context, method string, arg, ret interface
 		return err
 	}
 
-	// TODO: SSL
 	var transport io.ReadWriter = conn
-	if cli.opts.tFactory != nil {
+	if cli.opts.transportFactory != nil {
 		socket := NewSocketFromConnTimeout(conn, 0)
-		transport = cli.opts.tFactory.GetTransport(socket)
+		transport = cli.opts.transportFactory.GetTransport(socket)
 	}
 
 	if ctx.Done() != nil {
@@ -81,7 +80,7 @@ func (cli *client) Invoke(ctx context.Context, method string, arg, ret interface
 		MessageType: protocol.MessageTypeCall,
 		SeqId:       seqId,
 	}
-	encoder := cli.opts.tCfg.NewEncoder(transport)
+	encoder := cli.opts.thrifterCfg.NewEncoder(transport)
 	if err = encoder.EncodeMessageHeader(reqHeader); err != nil {
 		if conn.IsReused() && err == errPeerClosed {
 			// retry on reused & peer closed connection
@@ -102,7 +101,7 @@ func (cli *client) Invoke(ctx context.Context, method string, arg, ret interface
 	}
 
 	// Read response.
-	decoder := cli.opts.tCfg.NewDecoder(transport, nil)
+	decoder := cli.opts.thrifterCfg.NewDecoder(transport, nil)
 	rspHeader, err := decoder.DecodeMessageHeader()
 	if err != nil {
 		if conn.IsReused() && err == errPeerClosed {
