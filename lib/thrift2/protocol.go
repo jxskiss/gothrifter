@@ -90,7 +90,7 @@ type Protocol struct {
 
 	// Underlying transport, there will be at most one being non-nil.
 	header *HeaderTransport
-	frw    *FramedReadWriter
+	frw    *FramedTransport
 	// Flush function of the underlying transport, nil for raw socket.
 	flush func() error
 }
@@ -105,7 +105,7 @@ func NewProtocol(rw io.ReadWriter, opts options) *Protocol {
 		}
 		rw = p.header
 	} else if opts.maxframesize > 0 {
-		p.frw = &FramedReadWriter{rw: rw, maxFramesize: opts.maxframesize}
+		p.frw = NewFramedTransport(rw, opts.maxframesize)
 		rw = p.frw
 	}
 	if f, ok := rw.(flusher); ok {
