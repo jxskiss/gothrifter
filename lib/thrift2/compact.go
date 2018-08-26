@@ -21,6 +21,9 @@ func (r *compactReader) Read(p []byte) (n int, err error) {
 }
 
 func (r *compactReader) ReadMessageBegin() (name string, typeId MessageType, seqid int32, err error) {
+	if err = r.prot.preReadMessageBegin(); err != nil {
+		return
+	}
 	var protoID byte
 	if protoID, err = r.ReadByte(); err != nil {
 		return
@@ -34,12 +37,7 @@ func (r *compactReader) ReadMessageBegin() (name string, typeId MessageType, seq
 		return
 	}
 	typeId = MessageType((verAndType >> 5) & COMPACT_TYPE_BITS)
-	// version has already been check in protocol
-	//version := verAndType & COMPACT_VERSION_MASK
-	//if version != COMPACT_VERSION {
-	//	err = ErrVersion
-	//	return
-	//}
+	// version has already been checked in Protocol.preReadMessageBegin
 	if seqid, err = r.readVarInt32(); err != nil {
 		return
 	}
@@ -285,6 +283,9 @@ func (w *compactWriter) version() byte {
 }
 
 func (w *compactWriter) WriteMessageBegin(name string, typeId MessageType, seqid int32) error {
+	if err := w.prot.preWriteMessageBegin(name, typeId, seqid); err != nil {
+		return err
+	}
 	if err := w.WriteByte(COMPACT_PROTOCOL_ID); err != nil {
 		return err
 	}
@@ -496,5 +497,8 @@ func (w *compactWriter) WriteBinary(value []byte) error {
 }
 
 func (w *compactWriter) Flush() error {
-	return w.Writer.Flush()
+	if err := w.Writer.Flush(); err != nil {
+		return err
+	}
+	return w.prot.postFlush()
 }

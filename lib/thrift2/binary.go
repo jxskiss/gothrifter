@@ -17,11 +17,14 @@ func (r *binaryReader) Read(p []byte) (n int, err error) {
 }
 
 func (r *binaryReader) ReadMessageBegin() (name string, typeId MessageType, seqid int32, err error) {
+	if err = r.prot.preReadMessageBegin(); err != nil {
+		return
+	}
 	var n int32
 	if n, err = r.ReadI32(); err != nil {
 		return
 	}
-	msgType := MessageType(uint32(n) & 0x0ff)
+	typeId = MessageType(uint32(n) & 0x0ff)
 	if version := uint32(n) & BinaryVersionMask; version != BinaryVersion1 {
 		err = ErrVersion
 		return
@@ -32,7 +35,7 @@ func (r *binaryReader) ReadMessageBegin() (name string, typeId MessageType, seqi
 	if seqid, err = r.ReadI32(); err != nil {
 		return
 	}
-	if msgType == EXCEPTION {
+	if typeId == EXCEPTION {
 		var ex ApplicationException
 		if err = ex.Read(r); err == nil {
 			err = &ex
@@ -192,6 +195,9 @@ func (r *binaryReader) ReadRaw(fieldType Type) (raw []byte, err error) {
 type binaryWriter bufWriter
 
 func (w *binaryWriter) WriteMessageBegin(name string, typeId MessageType, seqid int32) error {
+	if err := w.prot.preWriteMessageBegin(name, typeId, seqid); err != nil {
+		return err
+	}
 	verAndType := uint32(BinaryVersion1) | uint32(typeId)
 	if err := w.WriteI32(int32(verAndType)); err != nil {
 		return err
@@ -323,5 +329,8 @@ func (w *binaryWriter) WriteBinary(value []byte) error {
 }
 
 func (w *binaryWriter) Flush() error {
-	return w.Writer.Flush()
+	if err := w.Writer.Flush(); err != nil {
+		return err
+	}
+	return w.prot.postFlush()
 }

@@ -176,7 +176,7 @@ func (p *Protocol) resetRaw(rw io.ReadWriter) {
 	p.bufw.Reset(rw)
 }
 
-func (p *Protocol) ReadMessageBegin() (name string, typeId MessageType, seqid int32, err error) {
+func (p *Protocol) preReadMessageBegin() (err error) {
 	if p.header != nil { // header transport
 		if err = p.header.ResetProtocol(); err != nil {
 			return
@@ -184,7 +184,7 @@ func (p *Protocol) ReadMessageBegin() (name string, typeId MessageType, seqid in
 		if err = p.ResetProtocol(); err != nil {
 			return
 		}
-		return p.Reader.ReadMessageBegin()
+		return nil
 	}
 
 	// auto detect binary & compact protocol
@@ -195,7 +195,7 @@ func (p *Protocol) ReadMessageBegin() (name string, typeId MessageType, seqid in
 	if b[0] == COMPACT_PROTOCOL_ID { // compact protocol
 		version := int(b[1] & COMPACT_VERSION_MASK)
 		if version != COMPACT_VERSION && version != COMPACT_VERSION_BE {
-			err = fmt.Errorf("expected compact version %02x or %02x but got %02x", COMPACT_VERSION, COMPACT_VERSION_BE, version)
+			err = fmt.Errorf("unexpected compact version %02x", version)
 			return
 		}
 		if p.protoID != ProtocolIDCompact || p.compactVer != version {
@@ -213,21 +213,20 @@ func (p *Protocol) ReadMessageBegin() (name string, typeId MessageType, seqid in
 			}
 		}
 	}
-	return p.Reader.ReadMessageBegin()
+	return nil
 }
 
-func (p *Protocol) WriteMessageBegin(name string, typeId MessageType, seqid int32) error {
+func (p *Protocol) preWriteMessageBegin(name string, typeId MessageType, seqid int32) error {
 	p.ResetProtocol()
-	if typeId == CALL || typeId == ONEWAY {
-		p.header.SetSeqID(uint32(seqid))
+	if p.header != nil {
+		if typeId == CALL || typeId == ONEWAY {
+			p.header.SetSeqID(uint32(seqid))
+		}
 	}
-	return p.Writer.WriteMessageBegin(name, typeId, seqid)
+	return nil
 }
 
-func (p *Protocol) Flush() (err error) {
-	if err := p.Writer.Flush(); err != nil {
-		return err
-	}
+func (p *Protocol) postFlush() (err error) {
 	if p.flush != nil {
 		return p.flush()
 	}
