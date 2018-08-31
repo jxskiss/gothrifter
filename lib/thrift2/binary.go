@@ -62,8 +62,8 @@ func (r *binaryReader) ReadFieldBegin() (name string, typeId Type, id int16, err
 		return
 	}
 	typeId = Type(t)
-	if id, err = r.ReadI16(); err != nil {
-		return
+	if typeId != STOP {
+		id, err = r.ReadI16()
 	}
 	return
 }

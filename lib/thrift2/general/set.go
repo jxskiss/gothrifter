@@ -32,17 +32,18 @@ func (obj *Set) Read(r thrift.Reader) error {
 	return r.ReadSetEnd()
 }
 
-func (obj *Set) sample() interface{} {
-	for elem := range *obj {
+func (obj Set) sample() interface{} {
+	for elem := range obj {
 		return elem
 	}
-	panic("can'Message take sample from empty set")
+	// should not come here
+	panic("can't take sample from empty set")
 }
 
-func (obj *Set) Write(w thrift.Writer) error {
-	var length = len(*obj)
+func (obj Set) Write(w thrift.Writer) error {
+	var length = len(obj)
 	var elemType thrift.Type
-	var elemWriter func(oprot thrift.Writer, val interface{}) error
+	var elemWriter func(val interface{}, w thrift.Writer) error
 	if length == 0 {
 		elemType = thrift.I64
 	} else {
@@ -52,8 +53,8 @@ func (obj *Set) Write(w thrift.Writer) error {
 	if err := w.WriteSetBegin(elemType, length); err != nil {
 		return err
 	}
-	for elem := range *obj {
-		if err := elemWriter(w, elem); err != nil {
+	for elem := range obj {
+		if err := elemWriter(elem, w); err != nil {
 			return err
 		}
 	}

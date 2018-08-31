@@ -4,15 +4,7 @@ import (
 	thrift "github.com/jxskiss/gothrifter/lib/thrift2"
 )
 
-type Field struct {
-	Name  string
-	Value interface{}
-}
-
-type Struct struct {
-	Name   string
-	Fields map[int16]Field
-}
+type Struct map[int16]interface{}
 
 func (obj Struct) Get(path ...interface{}) interface{} {
 	if len(path) == 0 {
@@ -22,22 +14,20 @@ func (obj Struct) Get(path ...interface{}) interface{} {
 	if !ok {
 		fieldId = int16(path[0].(int))
 	}
-	elem := obj.Fields[fieldId]
+	elem := obj[fieldId]
 	if len(path) == 1 {
 		return elem
 	}
-	return elem.Value.(Object).Get(path[1:]...)
+	return elem.(Object).Get(path[1:]...)
 }
 
 func (obj *Struct) Read(r thrift.Reader) error {
-	obj.Fields = make(map[int16]Field)
-	name, err := r.ReadStructBegin()
+	_, err := r.ReadStructBegin()
 	if err != nil {
 		return err
 	}
-	obj.Name = name
 	for {
-		fieldName, fieldType, fieldId, err := r.ReadFieldBegin()
+		_, fieldType, fieldId, err := r.ReadFieldBegin()
 		if err != nil {
 			return err
 		}
@@ -52,24 +42,21 @@ func (obj *Struct) Read(r thrift.Reader) error {
 		if err = r.ReadFieldEnd(); err != nil {
 			return err
 		}
-		obj.Fields[fieldId] = Field{
-			Name:  fieldName,
-			Value: val,
-		}
+		(*obj)[fieldId] = val
 	}
 	return r.ReadStructEnd()
 }
 
-func (obj *Struct) Write(w thrift.Writer) error {
-	if err := w.WriteStructBegin(obj.Name); err != nil {
+func (obj Struct) Write(w thrift.Writer) error {
+	if err := w.WriteStructBegin(""); err != nil {
 		return err
 	}
-	for fieldId, field := range obj.Fields {
-		fieldType, fieldWriter := writerOf(field.Value)
-		if err := w.WriteFieldBegin(field.Name, fieldType, fieldId); err != nil {
+	for fieldId, field := range obj {
+		fieldType, fieldWriter := writerOf(field)
+		if err := w.WriteFieldBegin("", fieldType, fieldId); err != nil {
 			return err
 		}
-		if err := fieldWriter(w, field.Value); err != nil {
+		if err := fieldWriter(field, w); err != nil {
 			return err
 		}
 		if err := w.WriteFieldEnd(); err != nil {

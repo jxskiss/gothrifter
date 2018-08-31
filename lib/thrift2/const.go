@@ -49,6 +49,7 @@ var typeNames = map[int]string{
 	VOID:   "VOID",
 	BOOL:   "BOOL",
 	BYTE:   "BYTE",
+	DOUBLE: "DOUBLE",
 	I16:    "I16",
 	I32:    "I32",
 	I64:    "I64",
@@ -59,8 +60,9 @@ var typeNames = map[int]string{
 	LIST:   "LIST",
 	UTF8:   "UTF8",
 	UTF16:  "UTF16",
+	BINARY: "BINARY",
+	FLOAT:  "FLOAT",
 }
-
 func (p Type) String() string {
 	if s, ok := typeNames[int(p)]; ok {
 		return s

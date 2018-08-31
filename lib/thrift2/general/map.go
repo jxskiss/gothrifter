@@ -40,17 +40,18 @@ func (obj *Map) Read(r thrift.Reader) error {
 	return r.ReadMapEnd()
 }
 
-func (obj *Map) sample() (interface{}, interface{}) {
-	for k, v := range *obj {
+func (obj Map) sample() (interface{}, interface{}) {
+	for k, v := range obj {
 		return k, v
 	}
-	panic("can'Message take sample from empty map")
+	// should not come here
+	panic("can't take sample from empty map")
 }
 
-func (obj *Map) Write(w thrift.Writer) error {
-	var length = len(*obj)
+func (obj Map) Write(w thrift.Writer) error {
+	var length = len(obj)
 	var keyType, valueType thrift.Type
-	var keyWriter, valueWriter func(oprot thrift.Writer, val interface{}) error
+	var keyWriter, valueWriter func(val interface{}, w thrift.Writer) error
 	if length == 0 {
 		keyType, valueType = thrift.I64, thrift.I64
 	} else {
@@ -61,11 +62,11 @@ func (obj *Map) Write(w thrift.Writer) error {
 	if err := w.WriteMapBegin(keyType, valueType, length); err != nil {
 		return err
 	}
-	for k, v := range *obj {
-		if err := keyWriter(w, k); err != nil {
+	for k, v := range obj {
+		if err := keyWriter(k, w); err != nil {
 			return err
 		}
-		if err := valueWriter(w, v); err != nil {
+		if err := valueWriter(v, w); err != nil {
 			return err
 		}
 	}

@@ -33,20 +33,20 @@ func (obj *List) Read(r thrift.Reader) error {
 	return r.ReadListEnd()
 }
 
-func (obj *List) Write(w thrift.Writer) error {
-	var length = len(*obj)
+func (obj List) Write(w thrift.Writer) error {
+	var length = len(obj)
 	var elemType thrift.Type
-	var elemWriter func(oprot thrift.Writer, val interface{}) error
+	var elemWriter func(val interface{}, w thrift.Writer) error
 	if length == 0 {
 		elemType = thrift.I64
 	} else {
-		elemType, elemWriter = writerOf((*obj)[0])
+		elemType, elemWriter = writerOf(obj[0])
 	}
 	if err := w.WriteListBegin(elemType, length); err != nil {
 		return err
 	}
-	for _, elem := range *obj {
-		if err := elemWriter(w, elem); err != nil {
+	for _, elem := range obj {
+		if err := elemWriter(elem, w); err != nil {
 			return err
 		}
 	}

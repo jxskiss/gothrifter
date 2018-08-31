@@ -79,69 +79,81 @@ func readerOf(ttype thrift.Type) func(r thrift.Reader) (interface{}, error) {
 		return func(r thrift.Reader) (interface{}, error) { return r.ReadFloat() }
 	case thrift.LIST:
 		return func(r thrift.Reader) (interface{}, error) {
-			var obj = new(List)
-			if err := obj.Read(r); err != nil {
-				return nil, err
-			}
-			return obj, nil
+			obj := List(make([]interface{}, 0))
+			err := obj.Read(r)
+			return obj, err
 		}
 	case thrift.MAP:
 		return func(r thrift.Reader) (interface{}, error) {
-			var obj = new(Map)
-			if err := obj.Read(r); err != nil {
-				return nil, err
-			}
-			return obj, nil
+			obj := Map(make(map[interface{}]interface{}))
+			err := obj.Read(r)
+			return obj, err
 		}
 	case thrift.SET:
 		return func(r thrift.Reader) (interface{}, error) {
-			var obj = new(Set)
-			if err := obj.Read(r); err != nil {
-				return nil, err
-			}
-			return obj, nil
+			obj := Set(make(map[interface{}]bool))
+			err := obj.Read(r)
+			return obj, err
+		}
+	case thrift.STRUCT:
+		return func(r thrift.Reader) (interface{}, error) {
+			obj := Struct{}
+			err := obj.Read(r)
+			return obj, err
 		}
 	default:
 		panic("unsupported type: " + ttype.String())
 	}
 }
 
-func writerOf(sample interface{}) (thrift.Type, func(w thrift.Writer, val interface{}) error) {
+func writerOf(sample interface{}) (thrift.Type, func(val interface{}, w thrift.Writer) error) {
 	switch sample.(type) {
 	case bool:
-		return thrift.BOOL, func(w thrift.Writer, val interface{}) error { return w.WriteBool(val.(bool)) }
+		return thrift.BOOL, func(val interface{}, w thrift.Writer) error { return w.WriteBool(val.(bool)) }
 	case int8:
-		return thrift.I08, func(w thrift.Writer, val interface{}) error { return w.WriteByte(byte(val.(int8))) }
+		return thrift.I08, func(val interface{}, w thrift.Writer) error { return w.WriteByte(byte(val.(int8))) }
 	case uint8:
-		return thrift.I08, func(w thrift.Writer, val interface{}) error { return w.WriteByte(byte(val.(uint8))) }
+		return thrift.I08, func(val interface{}, w thrift.Writer) error { return w.WriteByte(byte(val.(uint8))) }
 	case int16:
-		return thrift.I16, func(w thrift.Writer, val interface{}) error { return w.WriteI16(val.(int16)) }
+		return thrift.I16, func(val interface{}, w thrift.Writer) error { return w.WriteI16(val.(int16)) }
 	case uint16:
-		return thrift.I16, func(w thrift.Writer, val interface{}) error { return w.WriteI16(int16(val.(uint16))) }
+		return thrift.I16, func(val interface{}, w thrift.Writer) error { return w.WriteI16(int16(val.(uint16))) }
 	case int32:
-		return thrift.I32, func(w thrift.Writer, val interface{}) error { return w.WriteI32(val.(int32)) }
+		return thrift.I32, func(val interface{}, w thrift.Writer) error { return w.WriteI32(val.(int32)) }
 	case uint32:
-		return thrift.I32, func(w thrift.Writer, val interface{}) error { return w.WriteI32(int32(val.(uint32))) }
+		return thrift.I32, func(val interface{}, w thrift.Writer) error { return w.WriteI32(int32(val.(uint32))) }
 	case int64:
-		return thrift.I64, func(w thrift.Writer, val interface{}) error { return w.WriteI64(val.(int64)) }
+		return thrift.I64, func(val interface{}, w thrift.Writer) error { return w.WriteI64(val.(int64)) }
 	case uint64:
-		return thrift.I64, func(w thrift.Writer, val interface{}) error { return w.WriteI64(int64(val.(uint64))) }
+		return thrift.I64, func(val interface{}, w thrift.Writer) error { return w.WriteI64(int64(val.(uint64))) }
+	case int:
+		return thrift.I64, func(val interface{}, w thrift.Writer) error { return w.WriteI64(int64(val.(int))) }
+	case uint:
+		return thrift.I64, func(val interface{}, w thrift.Writer) error { return w.WriteI64(int64(val.(uint))) }
 	case string:
-		return thrift.STRING, func(w thrift.Writer, val interface{}) error { return w.WriteString(val.(string)) }
+		return thrift.STRING, func(val interface{}, w thrift.Writer) error { return w.WriteString(val.(string)) }
 	case []byte:
-		return thrift.BINARY, func(w thrift.Writer, val interface{}) error { return w.WriteBinary(val.([]byte)) }
+		return thrift.BINARY, func(val interface{}, w thrift.Writer) error { return w.WriteBinary(val.([]byte)) }
 	case float64:
-		return thrift.DOUBLE, func(w thrift.Writer, val interface{}) error { return w.WriteDouble(val.(float64)) }
+		return thrift.DOUBLE, func(val interface{}, w thrift.Writer) error { return w.WriteDouble(val.(float64)) }
 	case float32:
-		return thrift.FLOAT, func(w thrift.Writer, val interface{}) error { return w.WriteFloat(val.(float32)) }
+		return thrift.FLOAT, func(val interface{}, w thrift.Writer) error { return w.WriteFloat(val.(float32)) }
 	case List:
-		return thrift.LIST, func(w thrift.Writer, val interface{}) error { return val.(List).Write(w) }
+		return thrift.LIST, func(val interface{}, w thrift.Writer) error { return val.(List).Write(w) }
+	case *List:
+		return thrift.LIST, func(val interface{}, w thrift.Writer) error { return val.(*List).Write(w) }
 	case Map:
-		return thrift.MAP, func(w thrift.Writer, val interface{}) error { return val.(Map).Write(w) }
+		return thrift.MAP, func(val interface{}, w thrift.Writer) error { return val.(Map).Write(w) }
+	case *Map:
+		return thrift.MAP, func(val interface{}, w thrift.Writer) error { return val.(*Map).Write(w) }
 	case Set:
-		return thrift.SET, func(w thrift.Writer, val interface{}) error { return val.(Set).Write(w) }
+		return thrift.SET, func(val interface{}, w thrift.Writer) error { return val.(Set).Write(w) }
+	case *Set:
+		return thrift.SET, func(val interface{}, w thrift.Writer) error { return val.(*Set).Write(w) }
 	case Struct:
-		return thrift.STRUCT, func(w thrift.Writer, val interface{}) error { return val.(Struct).Write(w) }
+		return thrift.STRUCT, func(val interface{}, w thrift.Writer) error { return val.(Struct).Write(w) }
+	case *Struct:
+		return thrift.STRUCT, func(val interface{}, w thrift.Writer) error { return val.(*Struct).Write(w) }
 	default:
 		panic("unsupported type: " + reflect.TypeOf(sample).String())
 	}
