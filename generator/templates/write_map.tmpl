@@ -1,0 +1,6 @@
+{{/* .Type (Category = parser.TypeContainer) */}}
+
+for k, v := range tmp {
+    {{ formatWrite .KeyType "k" }}
+    {{ formatWrite .ValueType "v" }}
+}

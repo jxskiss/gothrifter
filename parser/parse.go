@@ -118,7 +118,9 @@ func (p *Thrift) parseFieldType(node *node32) *Type {
 	case ruleContainerType:
 		return p.parseContainerType(node)
 	case ruleIdentifier:
-		return &Type{Name: p.parsePegText(node), Category: TypeIdentifier, D: p.D}
+		typ := &Type{Name: p.parsePegText(node), Category: TypeIdentifier, D: p.D}
+		p.D.IdentTypes[typ.Name] = typ
+		return typ
 	default:
 		panic("unknown field type rule: " + node.pegRule.String())
 	}
@@ -207,7 +209,9 @@ func (p *Thrift) parseDefinitionType(node *node32) *Type {
 	case ruleContainerType:
 		return p.parseContainerType(node)
 	case ruleIdentifier:
-		return &Type{Name: p.parsePegText(node), Category: TypeIdentifier, D: p.D}
+		typ := &Type{Name: p.parsePegText(node), Category: TypeIdentifier, D: p.D}
+		p.D.IdentTypes[typ.Name] = typ
+		return typ
 	default:
 		panic("unknown definition type rule: " + node.pegRule.String())
 	}
@@ -459,6 +463,35 @@ func (d *Document) Parse() error {
 	return nil
 }
 
+func (d *Document) ResolveIdentifierType(name string) interface{} {
+	for _, x := range d.Typedefs {
+		if x.Name == name {
+			return x.Type
+		}
+	}
+	for _, x := range d.Enums {
+		if x.Name == name {
+			return x
+		}
+	}
+	for _, x := range d.Structs {
+		if x.Name == name {
+			return x
+		}
+	}
+	for _, x := range d.Exceptions {
+		if x.Name == name {
+			return x
+		}
+	}
+	for _, x := range d.Unions {
+		if x.Name == name {
+			return x
+		}
+	}
+	panic(fmt.Errorf("can not resolve identifier type: %v.%v", d.RefName, name))
+}
+
 func Parse(fn string) (*Document, error) {
 	fn = AbsPath(fn)
 	doc := &Document{
@@ -466,6 +499,7 @@ func Parse(fn string) (*Document, error) {
 
 		Includes:   make(map[string]*Include),
 		Namespaces: make(map[string]*Namespace),
+		IdentTypes: make(map[string]*Type),
 	}
 	if err := doc.Parse(); err != nil {
 		return nil, err

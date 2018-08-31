@@ -1,0 +1,16 @@
+{{/* .Type (Category = parser.TypeContainer) */}}
+
+_, _, size, err := r.ReadMapBegin()
+if err != nil {
+    return err
+}
+m := make({{ formatType . }}, size)
+for i := 0; i < size; i++ {
+    var k {{ formatType .KeyType }}
+    var v {{ formatType .ValueType }}
+    {
+        {{ formatRead .KeyType "k" }}
+        {{ formatRead .ValueType "v" }}
+    }
+    m[k] = v
+}

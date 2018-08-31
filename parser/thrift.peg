@@ -86,7 +86,7 @@ FieldType           <-  BaseType / ContainerType / Identifier
 
 DefinitionType      <-  BaseType / ContainerType / Identifier
 
-BaseType            <-  BOOL / BYTE / I8 / I16 / I32 / I64 / DOUBLE / STRING / BINARY / SLIST
+BaseType            <-  BOOL / BYTE / I8 / I16 / I32 / I64 / DOUBLE / STRING / BINARY / SLIST / FLOAT
 
 ContainerType       <-  MapType / SetType / ListType
 
@@ -191,6 +191,7 @@ DOUBLE              <-  <'double'>              !IdChars Spacing
 STRING              <-  <'string'>              !IdChars Spacing
 BINARY              <-  <'binary'>              !IdChars Spacing
 SLIST               <-  <'slist'>               !IdChars Spacing
+FLOAT               <-  <'float'>               !IdChars Spacing
 
 
 #-------------------------------------------------------------------------

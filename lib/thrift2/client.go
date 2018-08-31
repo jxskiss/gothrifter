@@ -9,7 +9,7 @@ import (
 var ErrPeerClosed = errors.New("thrift: peer closed")
 
 type Client interface {
-	Invoke(ctx context.Context, method string, arg, ret Struct, options ...CallOption) error
+	Invoke(ctx context.Context, method string, arg, ret interface{}, options ...CallOption) error
 	Close() error
 }
 
@@ -36,7 +36,7 @@ func NewClient(dialer Dialer, address string, opts ...Option) Client {
 	return cli
 }
 
-func (cli *client) Invoke(ctx context.Context, method string, arg, ret Struct, options ...CallOption) error {
+func (cli *client) Invoke(ctx context.Context, method string, arg, ret interface{}, options ...CallOption) error {
 	conn, err := cli.cpool.Take(ctx, cli.address)
 	if err != nil {
 		return err
@@ -70,7 +70,7 @@ func (cli *client) Invoke(ctx context.Context, method string, arg, ret Struct, o
 
 	seqid := conn.NextSequence()
 	_ = prot.WriteMessageBegin(method, CALL, seqid) // shall never fail
-	if err = arg.Write(prot); err != nil {
+	if err = Write(arg, prot); err != nil {
 		return err
 	}
 	if err = prot.Flush(); err != nil {
@@ -107,7 +107,7 @@ func (cli *client) Invoke(ctx context.Context, method string, arg, ret Struct, o
 	} else if rt != REPLY {
 		return ErrMessageType
 	}
-	if err = ret.Read(prot); err != nil {
+	if err = Read(ret, prot); err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return ctxErr
 		}

@@ -1,6 +1,39 @@
 package thrift2
 
-import "bytes"
+import (
+	"bytes"
+	"sync"
+)
+
+var DefaultProtocolPool = sync.Pool{
+	New: func() interface{} {
+		return NewProtocol(nil, DefaultOptions)
+	},
+}
+
+func Marshal(val Writable) ([]byte, error) {
+	var p = DefaultProtocolPool.Get().(*Protocol)
+	defer DefaultProtocolPool.Put(p)
+
+	var buf bytes.Buffer
+	p.Reset(&buf)
+	if err := val.Write(p); err != nil {
+		return nil, err
+	}
+	if err := p.Flush(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func Unmarshal(data []byte, val Readable) error {
+	var p = DefaultProtocolPool.Get().(*Protocol)
+	defer DefaultProtocolPool.Put(p)
+
+	var buf = bytes.NewBuffer(data)
+	p.Reset(buf)
+	return val.Read(p)
+}
 
 type Serializer struct {
 	buf  *bytes.Buffer
@@ -15,7 +48,7 @@ func NewSerializer() *Serializer {
 }
 
 // WriteString writes msg to the serializer and returns it as a string.
-func (s *Serializer) WriteString(msg Struct) (str string, err error) {
+func (s *Serializer) WriteString(msg Writable) (str string, err error) {
 	s.buf.Reset()
 	if err = msg.Write(s.prot); err != nil {
 		return
@@ -27,7 +60,7 @@ func (s *Serializer) WriteString(msg Struct) (str string, err error) {
 }
 
 // Write writes msg to the serializer and returns it as a byte slice.
-func (s *Serializer) Write(msg Struct) (b []byte, err error) {
+func (s *Serializer) Write(msg Writable) (b []byte, err error) {
 	s.buf.Reset()
 	if err = msg.Write(s.prot); err != nil {
 		return
@@ -49,14 +82,14 @@ func NewDeserialer() *Deserializer {
 	return ds
 }
 
-func (ds *Deserializer) ReadString(msg Struct, s string) (err error) {
+func (ds *Deserializer) ReadString(msg Readable, s string) (err error) {
 	if _, err = ds.buf.WriteString(s); err != nil {
 		return err
 	}
 	return msg.Read(ds.prot)
 }
 
-func (ds *Deserializer) Read(msg Struct, b []byte) (err error) {
+func (ds *Deserializer) Read(msg Readable, b []byte) (err error) {
 	if _, err := ds.buf.Write(b); err != nil {
 		return err
 	}

@@ -4,12 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"go/format"
-	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
-	"sort"
 	"strings"
+	"sync"
 	"text/template"
 
 	//"github.com/davecgh/go-spew/spew"
@@ -22,125 +20,8 @@ var (
 	//pprint = spew.ConfigState{DisableMethods: true, Indent: "  "}
 )
 
-var Version = "0.1.0"
-
-type Package struct {
-	*parser.Document
-	G *Generator
-}
-
-func (p *Package) Name() string {
-	name := p.fullname()
-	parts := strings.Split(name, ".")
-	return parts[len(parts)-1]
-}
-
-func (p *Package) ImportPath() string {
-	name := p.fullname()
-	path := filepath.Join(p.G.Prefix, filepath.Join(strings.Split(name, ".")...))
-	return strings.Replace(path, string(os.PathSeparator), "/", -1)
-}
-
-func (p *Package) fullname() string {
-	if n := p.Document.Namespaces["go"]; n != nil {
-		return n.Name
-	}
-	if n := p.Document.Namespaces["*"]; n != nil {
-		return n.Name
-	}
-	return p.Document.RefName
-}
-
-type include struct {
-	Name       string
-	ImportPath string
-}
-
-func (p *Package) Includes() []include {
-	var r []include
-	for _, inc := range p.Document.Includes {
-		r = append(r, include{
-			Name:       p.G.ImportedPkgs[inc.AbsPath].Name(),
-			ImportPath: p.G.ImportedPkgs[inc.AbsPath].ImportPath(),
-		})
-	}
-	sort.Slice(r, func(i, j int) bool {
-		return r[i].Name < r[j].Name
-	})
-	return r
-}
-
-func (p *Package) Generate() error {
-	outDir := filepath.Join(p.G.Output, filepath.Join(strings.Split(p.fullname(), ".")...))
-	if err := os.MkdirAll(outDir, 0755); err != nil && !os.IsExist(err) {
-		return err
-	}
-	outfile, err := filepath.Abs(filepath.Join(outDir, p.RefName+".thrift.go"))
-	if err != nil {
-		return err
-	}
-
-	code, err := p.gencode()
-	if err != nil {
-		return err
-	}
-	formattedCode, err := format.Source(code)
-	if err != nil {
-		log.Println("format:", err)
-		if !p.G.DebugMode {
-			return err
-		}
-	} else {
-		code = formattedCode
-	}
-	if err = ioutil.WriteFile(outfile, code, 0644); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (p *Package) gencode() ([]byte, error) {
-	var buf bytes.Buffer
-	var err error
-	var funcMap = p.G.funcMap()
-	var tmpl *template.Template
-
-	tmpl = template.Must(template.New("header").Funcs(funcMap).Parse(headerTmpl))
-	if err = tmpl.Execute(&buf, p); err != nil {
-		return nil, err
-	}
-
-	tmpl = template.Must(template.New("consts").Funcs(funcMap).Parse(constsTmpl))
-	if err = tmpl.Execute(&buf, p); err != nil {
-		return nil, err
-	}
-
-	tmpl = template.Must(template.New("typedefs").Funcs(funcMap).Parse(typedefsTmpl))
-	if err = tmpl.Execute(&buf, p); err != nil {
-		return nil, err
-	}
-
-	// Structs, Exceptions, Unions
-	p.Structs = append(p.Structs, p.Exceptions...)
-	p.Structs = append(p.Structs, p.Unions...)
-	tmpl = template.Must(template.New("structs").Funcs(funcMap).Parse(structsTmpl))
-	if err = tmpl.Execute(&buf, p); err != nil {
-		return nil, err
-	}
-
-	tmpl = template.Must(template.New("exceptions").Funcs(funcMap).Parse(exceptionsTmpl))
-	if err = tmpl.Execute(&buf, p); err != nil {
-		return nil, err
-	}
-
-	tmpl = template.Must(template.New("services").Funcs(funcMap).Parse(servicesTmpl))
-	if err = tmpl.Execute(&buf, p); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
-}
+var GitRevision = "????"
+var Version = "0.1.0-" + GitRevision
 
 type Generator struct {
 	Filename string
@@ -151,15 +32,18 @@ type Generator struct {
 	DebugMode    bool
 	RootPkg      *Package
 	ImportedPkgs map[string]*Package // key: absolute path to thrift file
+
+	tmplCache sync.Map
 }
 
 func New(filename, prefix, output string) *Generator {
-	return &Generator{
+	gen := &Generator{
 		Filename:     filename,
 		Prefix:       prefix,
 		Output:       output,
 		ImportedPkgs: make(map[string]*Package),
 	}
+	return gen
 }
 
 func (g *Generator) Parse() error {
@@ -172,6 +56,9 @@ func (g *Generator) Parse() error {
 	g.RootPkg = &Package{Document: doc, G: g}
 
 	if err = g.parseIncludes(); err != nil {
+		return err
+	}
+	if err = g.resolveTypes(); err != nil {
 		return err
 	}
 
@@ -208,6 +95,44 @@ func (g *Generator) parseIncludes() error {
 	return nil
 }
 
+func (g *Generator) resolveTypes() error {
+	pkgs := []*Package{g.RootPkg}
+	for _, pkg := range g.ImportedPkgs {
+		pkgs = append(pkgs, pkg)
+	}
+	for _, pkg := range pkgs {
+		for _, typ := range pkg.IdentTypes {
+			if typ.Category != parser.TypeIdentifier || typ.FinalType != nil {
+				continue
+			}
+			typ.FinalType = g.resolveIdentifierType(pkg, typ)
+		}
+	}
+	return nil
+}
+
+// TODO: what about recursive definitions?
+func (g *Generator) resolveIdentifierType(pkg *Package, typ *parser.Type) interface{} {
+	if typ.Category != parser.TypeIdentifier {
+		panic("can not resolve non-identifier type: " + typ.Category)
+	}
+	refNames := strings.SplitN(typ.Name, ".", 2)
+	var ref interface{}
+	if len(refNames) == 1 {
+		ref = pkg.Document.ResolveIdentifierType(refNames[0])
+	} else {
+		pkg = g.ImportedPkgs[pkg.Document.Includes[refNames[0]].AbsPath]
+		ref = pkg.Document.ResolveIdentifierType(refNames[1])
+	}
+	if typ, ok := ref.(*parser.Type); ok {
+		if typ.Category != parser.TypeIdentifier {
+			return typ
+		}
+		return g.resolveIdentifierType(pkg, typ)
+	}
+	return ref
+}
+
 func (g *Generator) Generate() error {
 	var err error
 	if err = g.RootPkg.Generate(); err != nil {
@@ -224,15 +149,63 @@ func (g *Generator) Generate() error {
 	return nil
 }
 
+func (g *Generator) formatCode(code []byte) ([]byte, error) {
+	formatted, err := format.Source(code)
+	if err != nil {
+		log.Println("format:", err)
+		if g.DebugMode {
+			return code, nil
+		}
+		return nil, err
+	}
+	return formatted, nil
+}
+
+func (g *Generator) tmpl(name string) *template.Template {
+	if t, ok := g.tmplCache.Load(name); ok {
+		return t.(*template.Template)
+	}
+	t := template.Must(template.New(name).Funcs(g.funcMap()).Parse(tmplBox.String(name)))
+	g.tmplCache.Store(name, t)
+	return t
+}
+
 func (g *Generator) funcMap() template.FuncMap {
 	return template.FuncMap{
+		"isPtrField":      g.isPtrField,
 		"formatValue":     g.formatValue,
 		"formatType":      g.formatType,
 		"formatReturn":    g.formatReturn,
 		"formatArguments": g.formatArguments,
+		"formatRead":      g.formatRead,
+		"formatWrite":     g.formatWrite,
 		"toCamelCase":     ToCamelCase,
 		"toSnakeCase":     ToSnakeCase,
+		"TODO":            func() string { return "TODO" },
+		"VERSION":         func() string { return Version },
 	}
+}
+
+func (g *Generator) isPtrField(field *parser.Field) bool {
+	if field.Optional && field.Default == nil {
+		return true
+	}
+	return g.isPtrType(field.Type)
+}
+
+func (g *Generator) isPtrType(typ *parser.Type) bool {
+	if typ.Category == parser.TypeIdentifier {
+		if typ, ok := typ.FinalType.(*parser.Type); ok {
+			if typ.Category != parser.TypeIdentifier {
+				return false
+			}
+		}
+		if _, ok := typ.FinalType.(*parser.Enum); ok {
+			return false
+		}
+		return true
+	}
+	return false
 }
 
 func (g *Generator) formatValue(value interface{}) (string, error) {
@@ -295,6 +268,8 @@ func (g *Generator) formatType(typ *parser.Type) (string, error) {
 			return "[]byte", nil
 		case "string", "slist":
 			return "string", nil
+		case "float":
+			return "float32", nil
 		}
 		return typ.Name, nil
 	}

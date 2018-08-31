@@ -22,6 +22,7 @@ const (
 	UTF8   TType = 16
 	UTF16  TType = 17
 	BINARY TType = 18
+	FLOAT  TType = 19
 
 	UNKNOWN TType = 255
 )
@@ -60,6 +61,8 @@ func (p TType) String() string {
 		return "UTF16"
 	case BINARY:
 		return "BINARY"
+	case FLOAT:
+		return "FLOAT"
 	}
 	return "UNKNOWN"
 }
@@ -67,7 +70,7 @@ func (p TType) String() string {
 var tTypeMap = map[string]TType{
 	"bool":   BOOL,
 	"byte":   BYTE,
-	"i8":     I08,
+	"i8":     BYTE,
 	"i16":    I16,
 	"i32":    I32,
 	"i64":    I64,
@@ -77,6 +80,7 @@ var tTypeMap = map[string]TType{
 	"map":    MAP,
 	"set":    SET,
 	"list":   LIST,
+	"float":  FLOAT,
 }
 
 func ToTType(name string) TType {

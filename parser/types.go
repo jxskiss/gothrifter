@@ -22,7 +22,8 @@ type Type struct {
 	Annotations []*Annotation
 
 	// for generator
-	D *Document
+	D         *Document
+	FinalType interface{}
 }
 
 func (t *Type) String() string {
@@ -38,6 +39,16 @@ func (t *Type) String() string {
 }
 
 func (t *Type) TType() TType {
+	if t.FinalType != nil {
+		switch x := t.FinalType.(type) {
+		case *Type:
+			return x.TType()
+		case *Enum:
+			return I32
+		default: // Struct, Union, Exception
+			return STRUCT
+		}
+	}
 	return ToTType(t.Name)
 }
 
@@ -53,8 +64,6 @@ type Include struct {
 	RefName string
 	AbsPath string
 }
-
-//type Include string
 
 type Exception *Struct
 
@@ -159,6 +168,7 @@ type Document struct {
 
 	Includes   map[string]*Include
 	Namespaces map[string]*Namespace
+	IdentTypes map[string]*Type // for generator
 	Typedefs   []*Typedef
 	Constants  []*Constant
 	Enums      []*Enum

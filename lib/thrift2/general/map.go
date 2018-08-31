@@ -44,7 +44,7 @@ func (obj Map) sample() (interface{}, interface{}) {
 	for k, v := range obj {
 		return k, v
 	}
-	// should not come here
+	// shall not go to here
 	panic("can't take sample from empty map")
 }
 

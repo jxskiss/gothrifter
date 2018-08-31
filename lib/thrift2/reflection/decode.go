@@ -1,7 +1,6 @@
 package reflection
 
 import (
-	"bytes"
 	"fmt"
 	thrift "github.com/jxskiss/gothrifter/lib/thrift2"
 	"reflect"
@@ -12,23 +11,15 @@ import (
 	"unsafe"
 )
 
+func init() {
+	thrift.ReadReflect = Read
+}
+
 var decodersCache sync.Map
 
 var byteSliceType = reflect.TypeOf(([]byte)(nil))
 
-func Unmarshal(data []byte, val interface{}) error {
-	var buf bytes.Buffer
-	var p = thrift.NewProtocol(&buf, thrift.DefaultOptions)
-	if _, err := buf.Write(data); err != nil {
-		return err
-	}
-	return Read(p, val)
-}
-
-func Read(r thrift.Reader, val interface{}) error {
-	if x, ok := val.(thrift.Readable); ok {
-		return x.Read(r)
-	}
+func Read(val interface{}, r thrift.Reader) error {
 	decoder := DecoderOf(reflect.TypeOf(val))
 	return decoder.Decode(val, r)
 }
@@ -185,5 +176,5 @@ type unknownDecoder struct {
 }
 
 func (decoder *unknownDecoder) decode(ptr unsafe.Pointer, r thrift.Reader) error {
-	return fmt.Errorf("%v: do not known how to decode %v", decoder.prefix, decoder.valType.String())
+	return fmt.Errorf("%v: do not know how to decode %v", decoder.prefix, decoder.valType.String())
 }

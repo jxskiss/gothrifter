@@ -26,7 +26,7 @@ func (r *binaryReader) ReadMessageBegin() (name string, typeId MessageType, seqi
 	}
 	typeId = MessageType(uint32(n) & 0x0ff)
 	if version := uint32(n) & BinaryVersionMask; version != BinaryVersion1 {
-		err = ErrVersion
+		err = ErrBinaryVersion
 		return
 	}
 	if name, err = r.ReadString(); err != nil {

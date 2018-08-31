@@ -1,7 +1,6 @@
 package reflection
 
 import (
-	"bytes"
 	"fmt"
 	thrift "github.com/jxskiss/gothrifter/lib/thrift2"
 	"reflect"
@@ -9,24 +8,13 @@ import (
 	"unsafe"
 )
 
-var encodersCache sync.Map
-
-func Marshal(val interface{}) ([]byte, error) {
-	var buf bytes.Buffer
-	var p = thrift.NewProtocol(&buf, thrift.DefaultOptions)
-	if err := Write(p, val); err != nil {
-		return nil, err
-	}
-	if err := p.Flush(); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+func init() {
+	thrift.WriteReflect = Write
 }
 
-func Write(w thrift.Writer, val interface{}) error {
-	if x, ok := val.(thrift.Writable); ok {
-		return x.Write(w)
-	}
+var encodersCache sync.Map
+
+func Write(val interface{}, w thrift.Writer) error {
 	encoder := EncoderOf(reflect.TypeOf(val))
 	return encoder.Encode(val, w)
 }

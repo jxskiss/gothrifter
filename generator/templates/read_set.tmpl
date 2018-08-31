@@ -1,0 +1,14 @@
+{{/* .Type (Category = parser.TypeContainer) */}}
+
+_, size, err := iter.ReadSetBegin()
+if err != nil {
+    return err
+}
+m := make({{ formatType . }}, size)
+for i := 0; i < size; i++ {
+    var e {{ formatType .ValueType }}
+    {
+        {{ formatRead .ValueType "e" }}
+    }
+    m[e] = true
+}

@@ -1,0 +1,14 @@
+{{/* .Type (Category = parser.TypeContainer) */}}
+
+_, size, err := r.ReadListBegin()
+if err != nil {
+    return err
+}
+lst := make({{ formatType . }}, 0, size)
+for i := 0; i < size; i++ {
+    var e {{ formatType .ValueType }}
+    {
+        {{ formatRead .ValueType "e" }}
+    }
+    lst = append(lst, e)
+}

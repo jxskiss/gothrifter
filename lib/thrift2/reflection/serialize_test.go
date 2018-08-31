@@ -3,7 +3,6 @@ package reflection
 import (
 	"github.com/matryer/is"
 	"io"
-	"log"
 	"testing"
 )
 
@@ -26,7 +25,6 @@ func TestMarshalUnmarshal(t *testing.T) {
 	}
 
 	b1, err := Marshal(obj1)
-	log.Println(b1, err)
 	is.NoErr(err)
 
 	b2, err := Marshal(&obj1)
@@ -35,7 +33,6 @@ func TestMarshalUnmarshal(t *testing.T) {
 
 	var val1 TestObject
 	err = Unmarshal(b2, &val1)
-	log.Println(val1, err)
 	is.True(err == nil || err == io.EOF)
 	is.Equal(obj1, val1)
 }

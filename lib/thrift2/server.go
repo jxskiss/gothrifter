@@ -3,6 +3,7 @@ package thrift2
 import (
 	"context"
 	"errors"
+	"io"
 	"log"
 	"net"
 	"runtime"
@@ -102,9 +103,10 @@ func (p *Server) process(client net.Conn) {
 		atomic.AddInt64(&p.n, -1)
 	}()
 	prot := p.ppool.Get().(*Protocol)
+	defer p.ppool.Put(prot)
+
 	prot.Reset(client)
-	if err := p.processor.Process(context.Background(), prot, prot); err != nil {
+	if err := p.processor.Process(context.Background(), prot, prot); err != nil && err != io.EOF {
 		log.Printf("server: process client %s error: %s\n", client.RemoteAddr(), err)
 	}
-	p.ppool.Put(prot)
 }

@@ -36,7 +36,7 @@ func (obj Set) sample() interface{} {
 	for elem := range obj {
 		return elem
 	}
-	// should not come here
+	// shall not go to here
 	panic("can't take sample from empty set")
 }
 

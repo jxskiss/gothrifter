@@ -30,10 +30,7 @@ func (msg *Message) Write(w thrift.Writer) error {
 	if err := msg.Arguments.Write(w); err != nil {
 		return err
 	}
-	if err := w.WriteMessageEnd(); err != nil {
-		return err
-	}
-	return w.Flush()
+	return w.WriteMessageEnd()
 }
 
 type MessageHeader struct {

@@ -1,0 +1,27 @@
+{{/* parser.Struct */}}
+{{ $name := (toCamelCase .Name) }}
+
+func (p *{{ $name }}) Read(r thrift.Reader) (err error) {
+    if _, err = r.ReadStructBegin(); err != nil {
+        return err
+    }
+    for {
+        _, fieldType, fieldId, err := r.ReadFieldBegin()
+        if err != nil {
+            return err
+        }
+        switch fieldId {
+        {{ range .Fields }}
+        case {{ .ID }}: // {{ .ID }}: {{ .Name }} {{ formatType .Type }}
+            var tmp {{ formatType .Type }}
+            {{ formatRead .Type "tmp" }}
+            p.{{ toCamelCase .Name }} = {{ if isPtrField . }}&{{ end }}tmp
+        {{ end }}
+        default:
+            if err = r.Skip(fieldType); err != nil {
+                return err
+            }
+        }
+    }
+    return nil
+}

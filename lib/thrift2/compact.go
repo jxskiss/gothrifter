@@ -29,7 +29,7 @@ func (r *compactReader) ReadMessageBegin() (name string, typeId MessageType, seq
 		return
 	}
 	if protoID != COMPACT_PROTOCOL_ID {
-		err = ErrVersion
+		err = ErrCompactVersion
 		return
 	}
 	var verAndType byte
