@@ -7,7 +7,7 @@ if err != nil {
 m := make({{ formatType . }}, size)
 for i := 0; i < size; i++ {
     var k {{ formatType .KeyType }}
-    var v {{ formatType .ValueType }}
+    var v {{ if isPtrType .ValueType }}*{{ end }}{{ formatType .ValueType }}
     {
         {{ formatRead .KeyType "k" }}
         {{ formatRead .ValueType "v" }}

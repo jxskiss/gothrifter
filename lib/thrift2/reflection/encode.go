@@ -114,8 +114,8 @@ func encoderOf(prefix string, valType reflect.Type) internalEncoder {
 				fieldId: fieldId,
 				encoder: encoderOf(prefix+" "+refField.Name, refField.Type),
 			}
-			if refField.Type.Kind() == reflect.Map && refField.Type.Elem().Kind() == reflect.Bool {
-				encoderField.encoder.(*mapEncoder).tType = parseSetType(refField)
+			if refField.Type.Kind() == reflect.Map {
+				encoderField.encoder.(*mapEncoder).tType = parseMapType(refField)
 			}
 			encoderFields = append(encoderFields, encoderField)
 		}

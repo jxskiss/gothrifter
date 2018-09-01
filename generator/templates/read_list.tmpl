@@ -6,7 +6,7 @@ if err != nil {
 }
 lst := make({{ formatType . }}, 0, size)
 for i := 0; i < size; i++ {
-    var e {{ formatType .ValueType }}
+    var e {{ if isPtrType .ValueType }}*{{ end }}{{ formatType .ValueType }}
     {
         {{ formatRead .ValueType "e" }}
     }

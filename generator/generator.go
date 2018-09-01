@@ -6,18 +6,22 @@ import (
 	"go/format"
 	"log"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"text/template"
 
-	//"github.com/davecgh/go-spew/spew"
+	"github.com/gobuffalo/packr"
 	"github.com/jxskiss/gothrifter/parser"
 )
 
 var (
 	_      = format.Source
 	logger = log.New(os.Stderr, "[THRIFTERC] ", log.LstdFlags)
-	//pprint = spew.ConfigState{DisableMethods: true, Indent: "  "}
+	//pprint  = spew.ConfigState{DisableMethods: true, Indent: "  "}
+	tmplBox    = packr.NewBox("./templates")
+	mlineRegex = regexp.MustCompile(`([\r\n]+\s*){2,}(\w+)`)
 )
 
 var GitRevision = "????"
@@ -150,6 +154,22 @@ func (g *Generator) Generate() error {
 }
 
 func (g *Generator) formatCode(code []byte) ([]byte, error) {
+	// clear the massive blank lines
+	code = mlineRegex.ReplaceAllFunc(code, func(old []byte) (new []byte) {
+		word := old[bytes.LastIndexAny(old, "\r\n\t ")+1:]
+		var sep = make([]byte, 0, 16)
+		if old[0] == '\r' && old[1] == '\n' {
+			sep = append(sep, old[:2]...)
+		} else {
+			sep = append(sep, old[0])
+		}
+		if w := string(word); w == "package" || w == "func" || w == "type" {
+			sep = append(sep, sep...)
+		}
+		new = append(sep, word...)
+		return
+	})
+
 	formatted, err := format.Source(code)
 	if err != nil {
 		log.Println("format:", err)
@@ -173,8 +193,10 @@ func (g *Generator) tmpl(name string) *template.Template {
 func (g *Generator) funcMap() template.FuncMap {
 	return template.FuncMap{
 		"isPtrField":      g.isPtrField,
+		"isPtrType":       g.isPtrType,
 		"formatValue":     g.formatValue,
 		"formatType":      g.formatType,
+		"formatStructTag": g.formatStructTag,
 		"formatReturn":    g.formatReturn,
 		"formatArguments": g.formatArguments,
 		"formatRead":      g.formatRead,
@@ -187,6 +209,9 @@ func (g *Generator) funcMap() template.FuncMap {
 }
 
 func (g *Generator) isPtrField(field *parser.Field) bool {
+	if field.Type.Category == parser.TypeContainer {
+		return false
+	}
 	if field.Optional && field.Default == nil {
 		return true
 	}
@@ -195,12 +220,13 @@ func (g *Generator) isPtrField(field *parser.Field) bool {
 
 func (g *Generator) isPtrType(typ *parser.Type) bool {
 	if typ.Category == parser.TypeIdentifier {
-		if typ, ok := typ.FinalType.(*parser.Type); ok {
+		finalType := typ.GetFinalType()
+		if typ, ok := finalType.(*parser.Type); ok {
 			if typ.Category != parser.TypeIdentifier {
 				return false
 			}
 		}
-		if _, ok := typ.FinalType.(*parser.Enum); ok {
+		if _, ok := finalType.(*parser.Enum); ok {
 			return false
 		}
 		return true
@@ -308,7 +334,7 @@ func (g *Generator) formatType(typ *parser.Type) (string, error) {
 			if vt, err = g.formatType(typ.ValueType); err != nil {
 				return "", err
 			}
-			if typ.ValueType.Category == parser.TypeIdentifier {
+			if g.isPtrType(typ.ValueType) {
 				vt = "*" + vt
 			}
 			return fmt.Sprintf("map[%v]%v", kt, vt), nil
@@ -316,7 +342,7 @@ func (g *Generator) formatType(typ *parser.Type) (string, error) {
 			if vt, err = g.formatType(typ.ValueType); err != nil {
 				return "", err
 			}
-			if typ.ValueType.Category == parser.TypeIdentifier {
+			if g.isPtrType(typ.ValueType) {
 				vt = "*" + vt
 			}
 			return fmt.Sprintf("[]%v", vt), nil
@@ -324,6 +350,43 @@ func (g *Generator) formatType(typ *parser.Type) (string, error) {
 	}
 
 	return typ.Name, nil
+}
+
+func (g *Generator) formatStructTag(field *parser.Field) (str string, err error) {
+	defer func(err *error) {
+		if e := recover(); e != nil {
+			*err = e.(error)
+		}
+	}(&err)
+	must := func(n int, err error) {
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	var buf bytes.Buffer
+	must(buf.WriteString(`thrift:"`))
+	must(buf.WriteString(field.Name))
+	must(buf.WriteString(","))
+	must(buf.WriteString(strconv.Itoa(field.ID)))
+	if field.Requiredness != "" && field.Requiredness != "default" {
+		must(buf.WriteString(","))
+		must(buf.WriteString(field.Requiredness))
+	} else if t := field.Type.TType(); t == parser.MAP || t == parser.SET {
+		must(buf.WriteString(","))
+	}
+	if field.Type.TType() == parser.MAP {
+		must(buf.WriteString(",map"))
+	} else if field.Type.TType() == parser.SET {
+		must(buf.WriteString(",set"))
+	}
+	must(buf.WriteString(`" json:"`))
+	must(buf.WriteString(ToSnakeCase(field.Name)))
+	if field.Optional {
+		must(buf.WriteString(",omitempty"))
+	}
+	must(buf.WriteRune('"'))
+	return buf.String(), nil
 }
 
 func (g *Generator) formatReturn(typ *parser.Type) (string, error) {
@@ -340,6 +403,25 @@ func (g *Generator) formatReturn(typ *parser.Type) (string, error) {
 }
 
 func (g *Generator) formatArguments(svc *parser.Service) (string, error) {
+	argStructs, err := g.parseArguments(svc)
+	if err != nil {
+		return "", err
+	}
+	pkg := &Package{
+		Document: &parser.Document{
+			RefName:  svc.D.RefName,
+			Includes: svc.D.Includes,
+			Structs:  argStructs,
+		},
+	}
+	var buf bytes.Buffer
+	if err := g.tmpl("structs.tmpl").Execute(&buf, pkg); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+func (g *Generator) parseArguments(svc *parser.Service) ([]*parser.Struct, error) {
 	argStructs := make([]*parser.Struct, 0)
 	for _, method := range svc.Methods {
 		// arguments
@@ -348,7 +430,7 @@ func (g *Generator) formatArguments(svc *parser.Service) (string, error) {
 			Fields: make([]*parser.Field, 0, len(method.Arguments)),
 		}
 		for _, f := range method.Arguments {
-			if f.Type.Category == parser.TypeIdentifier {
+			if g.isPtrType(f.Type) {
 				f.Optional = true
 				f.Requiredness = "optional"
 			}
@@ -370,11 +452,11 @@ func (g *Generator) formatArguments(svc *parser.Service) (string, error) {
 				Name:         "success",
 				Type:         method.ReturnType,
 				Optional:     true,
-				Requiredness: parser.RequirednessOptional,
+				Requiredness: parser.ReqOptional,
 			}
-			if r.Type.Category != parser.TypeIdentifier {
+			if !g.isPtrType(r.Type) {
 				r.Optional = false
-				r.Requiredness = parser.RequirednessRequired
+				r.Requiredness = parser.ReqRequired
 			}
 			s.Fields = append(s.Fields, r)
 		}
@@ -385,17 +467,5 @@ func (g *Generator) formatArguments(svc *parser.Service) (string, error) {
 		}
 		argStructs = append(argStructs, s)
 	}
-	pkg := &Package{
-		Document: &parser.Document{
-			RefName:  svc.D.RefName,
-			Includes: svc.D.Includes,
-			Structs:  argStructs,
-		},
-	}
-	tmpl := template.Must(template.New("structs").Funcs(g.funcMap()).Parse(structsTmpl))
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, pkg); err != nil {
-		return "", err
-	}
-	return buf.String(), nil
+	return argStructs, nil
 }

@@ -17,9 +17,15 @@ func (r *binaryReader) Read(p []byte) (n int, err error) {
 }
 
 func (r *binaryReader) ReadMessageBegin() (name string, typeId MessageType, seqid int32, err error) {
-	if err = r.prot.preReadMessageBegin(); err != nil {
+	var protoID ProtocolID
+	if protoID, err = r.prot.preReadMessageBegin(); err != nil {
 		return
 	}
+	// the protocol may be changed during preReadMessageBegin
+	if protoID != ProtocolIDBinary {
+		return r.prot.ReadMessageBegin()
+	}
+
 	var n int32
 	if n, err = r.ReadI32(); err != nil {
 		return

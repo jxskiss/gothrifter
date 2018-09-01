@@ -1,0 +1,31 @@
+{{/* Package */}}
+
+{{ range $struct := .Structs }}
+
+{{ range $struct.Fields }}
+{{ if (and .Default (not (eq .Type.Category "container") ) ) }}
+var {{ toCamelCase $struct.Name }}_{{ toCamelCase .Name }}_DEFAULT {{ formatType .Type }} = {{ formatValue .Default }}
+{{ end }}
+{{ end }}
+
+type {{ toCamelCase $struct.Name }} struct {
+    {{ range $struct.Fields }}
+    {{ toCamelCase .Name }} {{ if (isPtrField .) }}*{{ end }}{{ formatType .Type }} `{{ formatStructTag . }}`
+    {{ end }}
+}
+
+func New{{ toCamelCase $struct.Name }}() *{{ toCamelCase $struct.Name }} {
+	return &{{ toCamelCase $struct.Name }}{
+        {{ range $struct.Fields }}
+        {{ if (and .Default (not .IsDefaultZero ) ) }}
+        {{ if (eq .Type.Category "container") }}
+        {{ toCamelCase .Name}} : {{ formatType .Type }}{{ formatValue .Default }},
+        {{ else }}
+        {{ toCamelCase .Name }} : {{ toCamelCase $struct.Name }}_{{ toCamelCase .Name }}_DEFAULT,
+        {{ end }}
+        {{ end }}
+        {{ end }}
+	}
+}
+
+{{ end }}

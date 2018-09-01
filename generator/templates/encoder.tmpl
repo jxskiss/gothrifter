@@ -1,4 +1,5 @@
 {{/* parser.Struct */}}
+
 {{ $name := (toCamelCase .Name) }}
 
 func (p *{{ $name }}) Write(w thrift.Writer) (err error) {
@@ -6,7 +7,7 @@ func (p *{{ $name }}) Write(w thrift.Writer) (err error) {
         return err
     }
     {{ range .Fields }}
-    // {{ .ID }}: {{ .Name }} {{ formatType .Type }}
+    // {{ .ID }}: {{ .Name }} {{ if isPtrField . }}*{{ end }}{{ formatType .Type }}
     {{ if (isPtrField .) }} if p.{{ toCamelCase .Name }} != nil { {{ end }}
     {{ if (eq .Type.Category "container") }} if len(p.{{ toCamelCase .Name }}) > 0 { {{ end }}
         if err = w.WriteFieldBegin("{{ toCamelCase .Name }}", thrift.{{ .Type.TType }}, {{ .ID }}); err != nil {

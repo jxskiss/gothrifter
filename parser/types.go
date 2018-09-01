@@ -39,8 +39,8 @@ func (t *Type) String() string {
 }
 
 func (t *Type) TType() TType {
-	if t.FinalType != nil {
-		switch x := t.FinalType.(type) {
+	if finalType := t.GetFinalType(); finalType != nil {
+		switch x := finalType.(type) {
 		case *Type:
 			return x.TType()
 		case *Enum:
@@ -50,6 +50,17 @@ func (t *Type) TType() TType {
 		}
 	}
 	return ToTType(t.Name)
+}
+
+func (t *Type) GetFinalType() interface{} {
+	if t.FinalType == nil {
+		if t.D != nil && t.D.IdentTypes != nil {
+			if x := t.D.IdentTypes[t.Name]; x != nil {
+				t.FinalType = x.FinalType
+			}
+		}
+	}
+	return t.FinalType
 }
 
 type Namespace struct {
@@ -94,14 +105,26 @@ const (
 	ConstTypeLiteral    = "Literal"
 	ConstTypeIdentifier = "Identifier"
 
-	RequirednessRequired = "required"
-	RequirednessOptional = "optional"
-	RequirednessDefault  = "default"
+	ReqRequired = "required"
+	ReqOptional = "optional"
+	ReqDefault  = "default"
 )
 
 type ConstValue struct {
 	Type  string // Double, Int, Literal or Identifier
 	Value string
+}
+
+func (c *ConstValue) IsZero() bool {
+	switch c.Type {
+	case ConstTypeInt:
+		return c.Value == "0"
+	case ConstTypeDouble:
+		return c.Value == "0" || c.Value == ".0" || c.Value == "0.0"
+	case ConstTypeLiteral:
+		return c.Value == ""
+	}
+	return false
 }
 
 type ListConstValue []interface{}
@@ -125,6 +148,16 @@ type Field struct {
 	Type         *Type
 	Default      interface{}
 	Annotations  []*Annotation
+}
+
+func (f *Field) IsDefaultZero() bool {
+	if c, ok := f.Default.(ConstValue); ok {
+		if f.Type.Name == "bool" {
+			return c.Value == "false"
+		}
+		return c.IsZero()
+	}
+	return false
 }
 
 type Struct struct {

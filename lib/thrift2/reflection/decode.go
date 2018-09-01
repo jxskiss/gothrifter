@@ -120,8 +120,8 @@ func decoderOf(prefix string, valType reflect.Type) internalDecoder {
 				fieldId: fieldId,
 				decoder: decoderOf(prefix+" "+refField.Name, refField.Type),
 			}
-			if refField.Type.Kind() == reflect.Map && refField.Type.Elem().Kind() == reflect.Bool {
-				decoderField.decoder.(*mapDecoder).tType = parseSetType(refField)
+			if refField.Type.Kind() == reflect.Map {
+				decoderField.decoder.(*mapDecoder).tType = parseMapType(refField)
 			}
 			decoderFields = append(decoderFields, decoderField)
 			decoderFieldMap[fieldId] = decoderField
@@ -161,7 +161,10 @@ func parseFieldId(refField reflect.StructField) int16 {
 	return int16(fieldId)
 }
 
-func parseSetType(refField reflect.StructField) thrift.Type {
+func parseMapType(refField reflect.StructField) thrift.Type {
+	if refField.Type.Elem().Kind() != reflect.Bool {
+		return thrift.MAP
+	}
 	tag := refField.Tag.Get("thrift")
 	parts := strings.Split(tag, ",")
 	if len(parts) >= 4 && strings.TrimSpace(parts[3]) == "map" {

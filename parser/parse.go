@@ -296,7 +296,7 @@ func (p *Thrift) parseField(node *node32) *Field {
 	// FieldID? FieldReq? FieldType Identifier (EQUAL ConstValue)? XsdFieldOptions ListSeparator?
 	var f Field
 	f.ID = UNSETID
-	f.Requiredness = RequirednessDefault
+	f.Requiredness = ReqDefault
 	f.Optional = false
 	for n := node; n != nil; n = n.next {
 		switch n.pegRule {
@@ -320,11 +320,11 @@ func (p *Thrift) parseFieldReqOptional(node *node32) (string, bool) {
 	r := p.parsePegText(node)
 	switch r {
 	case "required":
-		return RequirednessRequired, false
+		return ReqRequired, false
 	case "optional":
-		return RequirednessOptional, true
+		return ReqOptional, true
 	case "":
-		return RequirednessDefault, false
+		return ReqDefault, false
 	default:
 		panic("invalid field requiredness literal")
 	}

@@ -1,4 +1,5 @@
 {{/* parser.Struct */}}
+
 {{ $name := (toCamelCase .Name) }}
 
 func (p *{{ $name }}) Read(r thrift.Reader) (err error) {
@@ -10,12 +11,15 @@ func (p *{{ $name }}) Read(r thrift.Reader) (err error) {
         if err != nil {
             return err
         }
+        if fieldType == thrift.STOP {
+            break
+        }
         switch fieldId {
         {{ range .Fields }}
-        case {{ .ID }}: // {{ .ID }}: {{ .Name }} {{ formatType .Type }}
-            var tmp {{ formatType .Type }}
+        case {{ .ID }}: // {{ .ID }}: {{ .Name }} {{ if isPtrField . }}*{{ end }}{{ formatType .Type }}
+            var tmp {{ if (and (isPtrField .) (isPtrType .Type)) }}*{{ end }}{{ formatType .Type }}
             {{ formatRead .Type "tmp" }}
-            p.{{ toCamelCase .Name }} = {{ if isPtrField . }}&{{ end }}tmp
+            p.{{ toCamelCase .Name }} = {{ if (and (isPtrField .) (not (isPtrType .Type))) }}&{{ end }}tmp
         {{ end }}
         default:
             if err = r.Skip(fieldType); err != nil {

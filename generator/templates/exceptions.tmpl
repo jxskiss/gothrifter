@@ -1,0 +1,7 @@
+{{/* Package */}}
+
+{{ range $exc := .Exceptions }}
+func (p *{{ .Name }}) Error() string {
+	return fmt.Sprintf("%T %#v", *p, *p)
+}
+{{ end }}

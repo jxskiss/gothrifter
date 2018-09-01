@@ -113,12 +113,12 @@ func NewProtocol(rw io.ReadWriter, opts options) *Protocol {
 	}
 	p.bufr = &bufReader{
 		rd:           bufio.NewReaderSize(rw, opts.rbufsz),
-		fieldIdStack: make([]int16, 0, 16),
+		fieldIdStack: make([]int16, 0, 4),
 		prot:         p,
 	}
 	p.bufw = &bufWriter{
 		Writer:       bufio.NewWriterSize(rw, opts.wbufsz),
-		fieldIdStack: make([]int16, 0, 16),
+		fieldIdStack: make([]int16, 0, 4),
 		prot:         p,
 	}
 	p.ResetProtocol()
@@ -176,7 +176,7 @@ func (p *Protocol) resetRaw(rw io.ReadWriter) {
 	p.bufw.Reset(rw)
 }
 
-func (p *Protocol) preReadMessageBegin() (err error) {
+func (p *Protocol) preReadMessageBegin() (protoID ProtocolID, err error) {
 	if p.header != nil { // header transport
 		if err = p.header.ResetProtocol(); err != nil {
 			return
@@ -184,7 +184,7 @@ func (p *Protocol) preReadMessageBegin() (err error) {
 		if err = p.ResetProtocol(); err != nil {
 			return
 		}
-		return nil
+		return p.header.protoID, nil
 	}
 
 	// auto detect binary & compact protocol
@@ -213,7 +213,7 @@ func (p *Protocol) preReadMessageBegin() (err error) {
 			}
 		}
 	}
-	return nil
+	return p.protoID, nil
 }
 
 func (p *Protocol) preWriteMessageBegin(name string, typeId MessageType, seqid int32) error {

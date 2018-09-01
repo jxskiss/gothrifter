@@ -12,7 +12,8 @@ import (
 	thrift "github.com/jxskiss/gothrifter/lib/thrift2"
 	"github.com/jxskiss/gothrifter/lib/thrift2/general"
 
-	{{ range .Includes }} {{ .Name }} "{{ .ImportPath }}"
+	{{ range .Includes }}
+	{{ .Name }} "{{ .ImportPath }}"
 	{{ end }}
 )
 
@@ -25,6 +26,7 @@ var (
 	_ = general.MessageHeader{}
 	_ = thrift.BinaryVersion1
 
-	{{ range .Includes }} _ = {{ .Name }}.GoUnusedProtection__
+	{{ range .Includes }}
+	_ = {{ .Name }}.GoUnusedProtection__
 	{{ end }}
 )

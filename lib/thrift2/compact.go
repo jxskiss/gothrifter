@@ -21,23 +21,22 @@ func (r *compactReader) Read(p []byte) (n int, err error) {
 }
 
 func (r *compactReader) ReadMessageBegin() (name string, typeId MessageType, seqid int32, err error) {
-	if err = r.prot.preReadMessageBegin(); err != nil {
+	var protoID ProtocolID
+	if protoID, err = r.prot.preReadMessageBegin(); err != nil {
 		return
 	}
-	var protoID byte
-	if protoID, err = r.ReadByte(); err != nil {
+	// the protocol may be changed during preReadMessageBegin
+	if protoID != ProtocolIDCompact {
+		return r.prot.ReadMessageBegin()
+	}
+
+	b := r.tmp[:2]
+	if _, err = r.Read(b); err != nil {
 		return
 	}
-	if protoID != COMPACT_PROTOCOL_ID {
-		err = ErrCompactVersion
-		return
-	}
-	var verAndType byte
-	if verAndType, err = r.ReadByte(); err != nil {
-		return
-	}
+	verAndType := b[1]
 	typeId = MessageType((verAndType >> 5) & COMPACT_TYPE_BITS)
-	// version has already been checked in Protocol.preReadMessageBegin
+	// version has already been checked in preReadMessageBegin, don't need to check again
 	if seqid, err = r.readVarInt32(); err != nil {
 		return
 	}

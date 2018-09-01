@@ -4,11 +4,21 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/jxskiss/gothrifter/parser"
+	"strings"
 )
 
+func (g *Generator) parseRefType(typ *parser.Type) (refName, typeName string) {
+	parts := strings.SplitN(typ.Name, ".", 2)
+	if len(parts) == 1 {
+		return "", ToCamelCase(parts[0])
+	}
+	return parts[0], ToCamelCase(parts[1])
+}
+
 func (g *Generator) formatRead(typ *parser.Type, variable string) (string, error) {
-	//fieldName := ToCamelCase(field.Name) // TODO: ptr
-	typeName := ToCamelCase(typ.Name)
+	//fieldName := ToCamelCase(field.Name)
+	//typeName := ToCamelCase(typ.Name)
+	var buf bytes.Buffer
 	switch typ.Category {
 	case parser.TypeBasic:
 		readFunc := ""
@@ -37,7 +47,6 @@ func (g *Generator) formatRead(typ *parser.Type, variable string) (string, error
 		tmpl := "if %v, err = r.%v(); err != nil { return err }"
 		return fmt.Sprintf(tmpl, variable, readFunc), nil
 	case parser.TypeContainer:
-		var buf bytes.Buffer
 		switch typ.Name {
 		case "map":
 			tmpl := "%v\n %v = m"
@@ -61,15 +70,22 @@ func (g *Generator) formatRead(typ *parser.Type, variable string) (string, error
 		return "", fmt.Errorf("unsupported type: %v", typ.Name)
 	case parser.TypeIdentifier:
 		if g.isPtrType(typ) {
-			tmpl := "%v = New%v()\n  if err = %v.Read(r); err != nil { return err }"
-			return fmt.Sprintf(tmpl, variable, typeName, variable), nil
-		} else if typ.FinalType != nil {
-			if typ, ok := typ.FinalType.(*parser.Type); ok {
+			refName, typeName := g.parseRefType(typ)
+			if refName == "" {
+				tmpl := "%v = New%v()\n  if err = %v.Read(r); err != nil { return err }"
+				return fmt.Sprintf(tmpl, variable, typeName, variable), nil
+			}
+			tmpl := "%v = %v.New%v()\n  if err = %v.Read(r); err != nil { return err }"
+			return fmt.Sprintf(tmpl, variable, refName, typeName, variable), nil
+		}
+		if finalType := typ.GetFinalType(); finalType != nil {
+			if typ, ok := finalType.(*parser.Type); ok {
 				return g.formatRead(typ, variable)
 			}
-			if enum, ok := typ.FinalType.(*parser.Enum); ok {
+			if _, ok := finalType.(*parser.Enum); ok {
+				tt, _ := g.formatType(typ)
 				tmpl := "if x, err := r.ReadI32(); err != nil { return err } else { %v = %v(x) }"
-				return fmt.Sprintf(tmpl, variable, enum.Name), nil
+				return fmt.Sprintf(tmpl, variable, tt), nil
 			}
 			panic("not implemented")
 		}
@@ -114,25 +130,37 @@ func (g *Generator) formatWrite(typ *parser.Type, variable string) (string, erro
 		var buf bytes.Buffer
 		switch typ.Name {
 		case "map":
-			err := g.tmpl("write_map.tmpl").Execute(&buf, typ)
-			return buf.String(), err
+			tmpl := "m := %v\n  %v"
+			if err := g.tmpl("write_map.tmpl").Execute(&buf, typ); err != nil {
+				return "", err
+			}
+			return fmt.Sprintf(tmpl, variable, buf.String()), nil
 		case "list":
-			err := g.tmpl("write_list.tmpl").Execute(&buf, typ)
-			return buf.String(), err
+			tmpl := "lst := %v\n  %v"
+			if err := g.tmpl("write_list.tmpl").Execute(&buf, typ); err != nil {
+				return "", err
+			}
+			return fmt.Sprintf(tmpl, variable, buf.String()), nil
 		case "set":
-			err := g.tmpl("write_set.tmpl").Execute(&buf, typ)
-			return buf.String(), err
+			tmpl := "m := %v\n  %v"
+			if err := g.tmpl("write_set.tmpl").Execute(&buf, typ); err != nil {
+				return "", nil
+			}
+			return fmt.Sprintf(tmpl, variable, buf.String()), nil
 		}
 		return "", fmt.Errorf("unsupported type: %v", typ.Name)
 	case parser.TypeIdentifier:
 		if g.isPtrType(typ) {
-			return "if err = tmp.Write(w); err != nil { return err }", nil
-		} else if typ.FinalType != nil {
-			if typ, ok := typ.FinalType.(*parser.Type); ok {
+			tmpl := "if err = %v.Write(w); err != nil { return err }"
+			return fmt.Sprintf(tmpl, variable), nil
+		}
+		if finalType := typ.GetFinalType(); finalType != nil {
+			if typ, ok := finalType.(*parser.Type); ok {
 				return g.formatWrite(typ, variable)
 			}
-			if _, ok := typ.FinalType.(*parser.Enum); ok {
-				return "if err = w.WriteI32(int32(tmp)); err != nil { return err }", nil
+			if _, ok := finalType.(*parser.Enum); ok {
+				tmpl := "if err = w.WriteI32(int32(%v)); err != nil { return err }"
+				return fmt.Sprintf(tmpl, variable), nil
 			}
 			panic(" not implemented")
 		}

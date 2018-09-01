@@ -1,0 +1,26 @@
+{{/* Package */}}
+
+const (
+	MaxMapElements    = 1 << 20
+	MaxSetElements    = 1 << 20
+	MaxListElements   = 1 << 20
+	MaxServerPipeline = 10
+)
+
+{{ range $enum := .Enums }}
+type {{ $enum.Name }} int32
+
+const (
+	{{ range $enum.Values }}
+	{{ $enum.Name }}_{{ .Name }} {{ $enum.Name }} = {{ .Value }}
+	{{ end }}
+)
+{{ end }}
+
+{{ range .Constants }}
+{{ if (eq .Type.Category "container") }}
+var {{ .Name }} = {{ formatType .Type }}{{ formatValue .Value }}
+{{ else }}
+const {{ .Name }} {{ formatType .Type }} = {{ formatValue .Value }}
+{{ end }}
+{{ end }}

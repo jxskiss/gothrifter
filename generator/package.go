@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"text/template"
 )
 
 type Package struct {
@@ -79,19 +78,30 @@ func (p *Package) Generate() error {
 		return err
 	}
 
-	// TODO: decoders
+	// struct decoders
 	decoderFile, err := filepath.Abs(filepath.Join(outDir, "decoder.go"))
 	if err != nil {
 		return err
 	}
 	buf := bytes.Buffer{}
-	if err = p.G.tmpl("decoder_header.tmpl").Execute(&buf, p); err != nil {
+	if err = p.G.tmpl("header.tmpl").Execute(&buf, p); err != nil {
 		log.Println("decoder:", err)
 		return err
 	}
 	for _, x := range p.Structs {
 		if err = p.G.tmpl("decoder.tmpl").Execute(&buf, x); err != nil {
 			log.Println("decoder:", err)
+		}
+	}
+	for _, svc := range p.Services {
+		argStructs, err := p.G.parseArguments(svc)
+		if err != nil {
+			return err
+		}
+		for _, x := range argStructs {
+			if err = p.G.tmpl("decoder.tmpl").Execute(&buf, x); err != nil {
+				log.Println("decoder:", err)
+			}
 		}
 	}
 	if code, err = p.G.formatCode(buf.Bytes()); err != nil {
@@ -101,19 +111,30 @@ func (p *Package) Generate() error {
 		return err
 	}
 
-	// TODO: encoders
+	// struct encoders
 	encoderFile, err := filepath.Abs(filepath.Join(outDir, "encoder.go"))
 	if err != nil {
 		return err
 	}
 	buf.Reset()
-	if err = p.G.tmpl("encoder_header.tmpl").Execute(&buf, p); err != nil {
+	if err = p.G.tmpl("header.tmpl").Execute(&buf, p); err != nil {
 		log.Println("encoder:", err)
 		return err
 	}
 	for _, x := range p.Structs {
 		if err = p.G.tmpl("encoder.tmpl").Execute(&buf, x); err != nil {
 			log.Println("encoder:", err)
+		}
+	}
+	for _, svc := range p.Services {
+		argStructs, err := p.G.parseArguments(svc)
+		if err != nil {
+			return err
+		}
+		for _, x := range argStructs {
+			if err = p.G.tmpl("encoder.tmpl").Execute(&buf, x); err != nil {
+				log.Println("encoder:", err)
+			}
 		}
 	}
 	if code, err = p.G.formatCode(buf.Bytes()); err != nil {
@@ -129,39 +150,34 @@ func (p *Package) Generate() error {
 func (p *Package) gencode() ([]byte, error) {
 	var buf bytes.Buffer
 	var err error
-	var funcMap = p.G.funcMap()
-	var tmpl *template.Template
 
-	tmpl = template.Must(template.New("header").Funcs(funcMap).Parse(headerTmpl))
-	if err = tmpl.Execute(&buf, p); err != nil {
+	if err = p.G.tmpl("header.tmpl").Execute(&buf, p); err != nil {
+		return nil, err
+	}
+	if _, err = buf.WriteString("var GoUnusedProtection__ int"); err != nil {
 		return nil, err
 	}
 
-	tmpl = template.Must(template.New("consts").Funcs(funcMap).Parse(constsTmpl))
-	if err = tmpl.Execute(&buf, p); err != nil {
+	if err = p.G.tmpl("consts.tmpl").Execute(&buf, p); err != nil {
 		return nil, err
 	}
 
-	tmpl = template.Must(template.New("typedefs").Funcs(funcMap).Parse(typedefsTmpl))
-	if err = tmpl.Execute(&buf, p); err != nil {
+	if err = p.G.tmpl("typedefs.tmpl").Execute(&buf, p); err != nil {
 		return nil, err
 	}
 
 	// Structs, Exceptions, Unions
 	p.Structs = append(p.Structs, p.Exceptions...)
 	p.Structs = append(p.Structs, p.Unions...)
-	tmpl = template.Must(template.New("structs").Funcs(funcMap).Parse(structsTmpl))
-	if err = tmpl.Execute(&buf, p); err != nil {
+	if err = p.G.tmpl("structs.tmpl").Execute(&buf, p); err != nil {
 		return nil, err
 	}
 
-	tmpl = template.Must(template.New("exceptions").Funcs(funcMap).Parse(exceptionsTmpl))
-	if err = tmpl.Execute(&buf, p); err != nil {
+	if err = p.G.tmpl("exceptions.tmpl").Execute(&buf, p); err != nil {
 		return nil, err
 	}
 
-	tmpl = template.Must(template.New("services").Funcs(funcMap).Parse(servicesTmpl))
-	if err = tmpl.Execute(&buf, p); err != nil {
+	if err = p.G.tmpl("service.tmpl").Execute(&buf, p); err != nil {
 		return nil, err
 	}
 
