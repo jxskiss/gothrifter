@@ -78,7 +78,21 @@ type Include struct {
 
 type Exception *Struct
 
-type Union *Struct
+type Union Struct
+
+func (u *Union) DefaultFields() []*Field {
+	return (*Struct)(u).DefaultFields()
+}
+
+func (u *Union) ZeroFields() []*Field {
+	fields := make([]*Field, 0)
+	for _, f := range u.Fields {
+		if f.Type.Category == TypeBasic && f.Default == nil {
+			fields = append(fields, f)
+		}
+	}
+	return fields
+}
 
 type Typedef struct {
 	*Type
@@ -166,6 +180,43 @@ type Struct struct {
 	Annotations []*Annotation
 }
 
+// TODO: move the methods of Struct and Union to generator package.
+
+// DefaultFields returns fields which have default values, excluding
+// fields with container type. For generator.
+func (s *Struct) DefaultFields() []*Field {
+	fields := make([]*Field, 0)
+	for _, f := range s.Fields {
+		if f.Default != nil && f.Type.Category != TypeContainer {
+			fields = append(fields, f)
+		}
+	}
+	return fields
+}
+
+// OptionalFields returns fields which is specified as optional. For generator.
+func (s *Struct) OptionalFields() []*Field {
+	fields := make([]*Field, 0)
+	for _, f := range s.Fields {
+		if f.Requiredness == ReqOptional {
+			fields = append(fields, f)
+		}
+	}
+	return fields
+}
+
+// ZeroFields returns fields which has basic type and is specified as optional
+// but without default values. For generator.
+func (s *Struct) ZeroFields() []*Field {
+	fields := make([]*Field, 0)
+	for _, f := range s.Fields {
+		if f.Type.Category == TypeBasic && f.Requiredness == ReqOptional && f.Default == nil {
+			fields = append(fields, f)
+		}
+	}
+	return fields
+}
+
 type Method struct {
 	Comment     string
 	Name        string
@@ -207,6 +258,6 @@ type Document struct {
 	Enums      []*Enum
 	Structs    []*Struct
 	Exceptions []*Struct
-	Unions     []*Struct
+	Unions     []*Union
 	Services   []*Service
 }

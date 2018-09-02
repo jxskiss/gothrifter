@@ -1,6 +1,12 @@
 {{/* .Type (Category = parser.TypeContainer) */}}
 
+if err = w.WriteMapBegin(thrift.{{ .KeyType.TType }}, thrift.{{ .ValueType.TType }}, len(m)); err != nil {
+    return err
+}
 for k, v := range m {
     {{ formatWrite .KeyType "k" }}
     {{ formatWrite .ValueType "v" }}
 }
+// if err = w.WriteMapEnd(); err != nil {
+//     return err
+// }

@@ -1,11 +1,13 @@
 {{/* parser.Struct */}}
 
 {{ $name := (toCamelCase .Name) }}
+{{ $checker := (reqChecker .) }}
 
 func (p *{{ $name }}) Read(r thrift.Reader) (err error) {
     if _, err = r.ReadStructBegin(); err != nil {
         return err
     }
+    {{ $checker.Init }}
     for {
         _, fieldType, fieldId, err := r.ReadFieldBegin()
         if err != nil {
@@ -20,12 +22,20 @@ func (p *{{ $name }}) Read(r thrift.Reader) (err error) {
             var tmp {{ if (and (isPtrField .) (isPtrType .Type)) }}*{{ end }}{{ formatType .Type }}
             {{ formatRead .Type "tmp" }}
             p.{{ toCamelCase .Name }} = {{ if (and (isPtrField .) (not (isPtrType .Type))) }}&{{ end }}tmp
+            {{ $checker.Set .ID }}
         {{ end }}
         default:
             if err = r.Skip(fieldType); err != nil {
                 return err
             }
         }
+        // if err = r.ReadFieldEnd(); err != nil {
+        //     return err
+        // }
     }
+    if err = r.ReadStructEnd(); err != nil {
+        return err
+    }
+    {{ $checker.Check }}
     return nil
 }

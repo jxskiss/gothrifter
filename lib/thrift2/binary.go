@@ -84,7 +84,7 @@ func (r *binaryReader) ReadMapBegin() (keyType Type, valueType Type, size int, e
 		return
 	}
 	keyType, valueType = Type(b[0]), Type(b[1])
-	size = int(uint32(b[5]) | uint32(b[4])<<8 | uint32(b[3])<<16 | uint32(b[2])<<24)
+	size = int(binary.BigEndian.Uint32(b[2:6]))
 	return
 }
 
@@ -114,7 +114,7 @@ func (r *binaryReader) readCollectionBegin() (elemType Type, size int, err error
 		return
 	}
 	elemType = Type(b[0])
-	size = int(uint32(b[4]) | uint32(b[3])<<8 | uint32(b[2])<<16 | uint32(b[1])<<24)
+	size = int(binary.BigEndian.Uint32(b[1:5]))
 	return
 }
 
@@ -136,7 +136,7 @@ func (r *binaryReader) ReadI16() (value int16, err error) {
 func (r *binaryReader) ReadI32() (value int32, err error) {
 	b := r.tmp[:4]
 	if _, err = r.Read(b); err == nil {
-		value = int32(uint32(b[3]) | uint32(b[2])<<8 | uint32(b[1])<<16 | uint32(b[0])<<24)
+		value = int32(binary.BigEndian.Uint32(b))
 	}
 	return
 }
@@ -144,9 +144,7 @@ func (r *binaryReader) ReadI32() (value int32, err error) {
 func (r *binaryReader) ReadI64() (value int64, err error) {
 	b := r.tmp[:8]
 	if _, err = r.Read(b); err == nil {
-		value = int64(
-			uint64(b[7]) | uint64(b[6])<<8 | uint64(b[5])<<16 | uint64(b[4])<<24 |
-				uint64(b[3])<<32 | uint64(b[2])<<40 | uint64(b[1])<<48 | uint64(b[0])<<56)
+		value = int64(binary.BigEndian.Uint64(b))
 	}
 	return
 }
@@ -229,7 +227,7 @@ func (w *binaryWriter) WriteStructEnd() error {
 func (w *binaryWriter) WriteFieldBegin(name string, typeId Type, id int16) error {
 	b := w.tmp[:3]
 	b[0] = byte(typeId)
-	b[1], b[2] = byte(id>>8), byte(id)
+	binary.BigEndian.PutUint16(b[1:3], uint16(id))
 	_, err := w.Write(b)
 	return err
 }
@@ -245,7 +243,7 @@ func (w *binaryWriter) WriteFieldStop() error {
 func (w *binaryWriter) WriteMapBegin(keyType Type, valueType Type, size int) error {
 	b := w.tmp[:6]
 	b[0], b[1] = byte(keyType), byte(valueType)
-	b[2], b[3], b[4], b[5] = byte(size>>24), byte(size>>16), byte(size>>8), byte(size)
+	binary.BigEndian.PutUint32(b[2:6], uint32(size))
 	_, err := w.Write(b)
 	return err
 }
@@ -273,7 +271,7 @@ func (w *binaryWriter) WriteSetEnd() error {
 func (w *binaryWriter) writeCollectionBegin(elemType Type, size int) error {
 	b := w.tmp[:5]
 	b[0] = byte(elemType)
-	b[1], b[2], b[3], b[4] = byte(size>>24), byte(size>>16), byte(size>>8), byte(size)
+	binary.BigEndian.PutUint32(b[1:5], uint32(size))
 	_, err := w.Write(b)
 	return err
 }
@@ -286,23 +284,22 @@ func (w *binaryWriter) WriteBool(value bool) error {
 }
 
 func (w *binaryWriter) WriteI16(value int16) error {
-	if err := w.WriteByte(byte(value) >> 8); err != nil {
-		return err
-	}
-	return w.WriteByte(byte(value))
+	b := w.tmp[:2]
+	binary.BigEndian.PutUint16(b, uint16(value))
+	_, err := w.Write(b)
+	return err
 }
 
 func (w *binaryWriter) WriteI32(value int32) error {
 	b := w.tmp[:4]
-	b[0], b[1], b[2], b[3] = byte(value>>24), byte(value>>16), byte(value>>8), byte(value)
+	binary.BigEndian.PutUint32(b, uint32(value))
 	_, err := w.Write(b)
 	return err
 }
 
 func (w *binaryWriter) WriteI64(value int64) error {
 	b := w.tmp[:8]
-	b[0], b[1], b[2], b[3] = byte(value>>56), byte(value>>48), byte(value>>40), byte(value>>32)
-	b[4], b[5], b[6], b[7] = byte(value>>24), byte(value>>16), byte(value>>8), byte(value)
+	binary.BigEndian.PutUint64(b, uint64(value))
 	_, err := w.Write(b)
 	return err
 }

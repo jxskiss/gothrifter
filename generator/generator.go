@@ -21,7 +21,7 @@ var (
 	logger = log.New(os.Stderr, "[THRIFTERC] ", log.LstdFlags)
 	//pprint  = spew.ConfigState{DisableMethods: true, Indent: "  "}
 	tmplBox    = packr.NewBox("./templates")
-	mlineRegex = regexp.MustCompile(`([\r\n]+\s*){2,}(\w+)`)
+	mlineRegex = regexp.MustCompile(`([\r\n]+\s*){2,}([\w\}\]\)/]+)`)
 )
 
 var GitRevision = "????"
@@ -201,6 +201,7 @@ func (g *Generator) funcMap() template.FuncMap {
 		"formatArguments": g.formatArguments,
 		"formatRead":      g.formatRead,
 		"formatWrite":     g.formatWrite,
+		"reqChecker":      g.reqChecker,
 		"toCamelCase":     ToCamelCase,
 		"toSnakeCase":     ToSnakeCase,
 		"TODO":            func() string { return "TODO" },
@@ -468,4 +469,83 @@ func (g *Generator) parseArguments(svc *parser.Service) ([]*parser.Struct, error
 		argStructs = append(argStructs, s)
 	}
 	return argStructs, nil
+}
+
+func (g *Generator) reqChecker(s *parser.Struct) *ReqChecker {
+	requiredFields := make([]*parser.Field, 0)
+	for _, f := range s.Fields {
+		if f.Requiredness == parser.ReqRequired {
+			requiredFields = append(requiredFields, f)
+		}
+	}
+	return NewReqChecker(requiredFields)
+}
+
+type checkField struct {
+	f    *parser.Field
+	id   int
+	mask uint64
+}
+
+type ReqChecker struct {
+	fields map[int]checkField
+	mask   []uint64
+}
+
+func NewReqChecker(requiredFields []*parser.Field) *ReqChecker {
+	rc := &ReqChecker{fields: make(map[int]checkField)}
+	preMask := uint64(0)
+	for i, f := range requiredFields {
+		var mask uint64
+		if i%64 == 0 {
+			rc.mask = append(rc.mask, 0)
+			preMask, mask = 1, 1
+		} else {
+			mask = preMask << 1
+			preMask = mask
+		}
+		rc.fields[f.ID] = checkField{f: f, id: i, mask: mask}
+		rc.mask[i/64] |= mask
+	}
+	return rc
+}
+
+func (rc *ReqChecker) Init() string {
+	if len(rc.fields) == 0 {
+		return ""
+	}
+	tmpl := "var issetmask [%v]uint64"
+	return fmt.Sprintf(tmpl, len(rc.fields)/64+1)
+}
+
+func (rc *ReqChecker) Set(fieldId int) string {
+	req, ok := rc.fields[fieldId]
+	if !ok {
+		return ""
+	}
+	tmpl := "issetmask[%v] &= 0x%x"
+	return fmt.Sprintf(tmpl, req.id/64, req.mask)
+}
+
+func (rc *ReqChecker) Check() string {
+	if len(rc.fields) == 0 {
+		return ""
+	}
+	var buf bytes.Buffer
+	buf.WriteString(fmt.Sprintf("if issetmask != [%v]uint64{", len(rc.mask)))
+	for _, x := range rc.mask {
+		buf.WriteString(fmt.Sprintf("0x%x, ", x))
+	}
+	buf.WriteString("} {\n")
+	stmts := make([]string, len(rc.fields))
+	for _, r := range rc.fields {
+		tmpl := `if issetmask[%v] & 0x%x == 0 { return thrift.NewApplicationException(thrift.INVALID_DATA, "required field %v is not set") }`
+		stmts[r.id] = fmt.Sprintf(tmpl, r.id/64, r.mask, ToCamelCase(r.f.Name))
+	}
+	for _, s := range stmts {
+		buf.WriteString(s)
+		buf.WriteByte('\n')
+	}
+	buf.WriteString("}\n")
+	return buf.String()
 }

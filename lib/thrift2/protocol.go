@@ -113,12 +113,12 @@ func NewProtocol(rw io.ReadWriter, opts options) *Protocol {
 	}
 	p.bufr = &bufReader{
 		rd:           bufio.NewReaderSize(rw, opts.rbufsz),
-		fieldIdStack: make([]int16, 0, 4),
+		fieldIdStack: make([]int16, 0, 8),
 		prot:         p,
 	}
 	p.bufw = &bufWriter{
 		Writer:       bufio.NewWriterSize(rw, opts.wbufsz),
-		fieldIdStack: make([]int16, 0, 4),
+		fieldIdStack: make([]int16, 0, 8),
 		prot:         p,
 	}
 	p.ResetProtocol()

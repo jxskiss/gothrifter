@@ -254,13 +254,13 @@ func (p *Thrift) parseStruct(node *node32) *Struct {
 	return &Struct{Name: name, Fields: fields}
 }
 
-func (p *Thrift) parseUnion(node *node32) Union {
+func (p *Thrift) parseUnion(node *node32) *Union {
 	node = assertRule(node, ruleUnion)
 	// UNION Identifier XSD_ALL? LWING Field* RWING
 	node = node.next // skip "union"
 	name := p.parsePegText(node)
 	fields := p.parseFields(node.next)
-	return &Struct{Name: name, Fields: fields}
+	return &Union{Name: name, Fields: fields}
 }
 
 // TODO
@@ -448,7 +448,7 @@ func (d *Document) Parse() error {
 				d.Enums = append(d.Enums, dd)
 			case *Struct:
 				d.Structs = append(d.Structs, dd)
-			case Union:
+			case *Union:
 				d.Unions = append(d.Unions, dd)
 			case Exception:
 				d.Exceptions = append(d.Exceptions, dd)

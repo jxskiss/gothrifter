@@ -1,0 +1,33 @@
+{{/* parser.Union */}}
+
+{{ $name := (toCamelCase .Name) }}
+
+func (p *{{ $name }}) Write(w thrift.Writer) (err error) {
+    if c := p.CountSetFields(); c != 1 {
+        return fmt.Errorf("write union %T: exactly one field must be set (%d set)", p, c)
+    }
+    if err = w.WriteStructBegin("{{ $name }}"); err != nil {
+        return err
+    }
+
+    {{ range .Fields }}
+    // {{ .ID }}: {{ .Name }} {{ if isPtrField . }}*{{ end }}{{ formatType .Type }}
+    if p.IsSet{{ toCamelCase .Name }}() {
+        if err = w.WriteFieldBegin("{{ toCamelCase .Name }}", thrift.{{ .Type.TType }}, {{ .ID }}); err != nil {
+            return err
+        }
+        {
+            tmp := {{ if (isPtrField .) }}*{{ end }}p.{{ toCamelCase .Name }}
+            {{ formatWrite .Type "tmp" }}
+        }
+        // if err = w.WriteFieldEnd(); err != nil {
+        //     return err
+        // }
+    }
+    {{ end }}
+
+    if err = w.WriteFieldStop(); err != nil {
+        return err
+    }
+    return w.WriteStructEnd()
+}

@@ -1,5 +1,11 @@
 {{/* .Type (Category = parser.TypeContainer) */}}
 
+if err = w.WriteListBegin(thrift.{{ .ValueType.TType }}, len(lst)); err != nil {
+    return err
+}
 for _, v := range lst {
     {{ formatWrite .ValueType "v" }}
 }
+// if err = w.WriteListEnd(); err != nil {
+//     return err
+// }

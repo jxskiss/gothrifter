@@ -89,8 +89,15 @@ func (p *Package) Generate() error {
 		return err
 	}
 	for _, x := range p.Structs {
-		if err = p.G.tmpl("decoder.tmpl").Execute(&buf, x); err != nil {
+		if err = p.G.tmpl("read_struct.tmpl").Execute(&buf, x); err != nil {
 			log.Println("decoder:", err)
+			return err
+		}
+	}
+	for _, x := range p.Unions {
+		if err = p.G.tmpl("read_struct.tmpl").Execute(&buf, (*parser.Struct)(x)); err != nil {
+			log.Println("decoder:", err)
+			return err
 		}
 	}
 	for _, svc := range p.Services {
@@ -99,8 +106,9 @@ func (p *Package) Generate() error {
 			return err
 		}
 		for _, x := range argStructs {
-			if err = p.G.tmpl("decoder.tmpl").Execute(&buf, x); err != nil {
+			if err = p.G.tmpl("read_struct.tmpl").Execute(&buf, x); err != nil {
 				log.Println("decoder:", err)
+				return err
 			}
 		}
 	}
@@ -122,8 +130,15 @@ func (p *Package) Generate() error {
 		return err
 	}
 	for _, x := range p.Structs {
-		if err = p.G.tmpl("encoder.tmpl").Execute(&buf, x); err != nil {
+		if err = p.G.tmpl("write_struct.tmpl").Execute(&buf, x); err != nil {
 			log.Println("encoder:", err)
+			return err
+		}
+	}
+	for _, x := range p.Unions {
+		if err = p.G.tmpl("write_union.tmpl").Execute(&buf, x); err != nil {
+			log.Println("encoder:", err)
+			return err
 		}
 	}
 	for _, svc := range p.Services {
@@ -132,8 +147,9 @@ func (p *Package) Generate() error {
 			return err
 		}
 		for _, x := range argStructs {
-			if err = p.G.tmpl("encoder.tmpl").Execute(&buf, x); err != nil {
+			if err = p.G.tmpl("write_struct.tmpl").Execute(&buf, x); err != nil {
 				log.Println("encoder:", err)
+				return err
 			}
 		}
 	}
@@ -166,10 +182,26 @@ func (p *Package) gencode() ([]byte, error) {
 		return nil, err
 	}
 
-	// Structs, Exceptions, Unions
+	// Structs, Exceptions
 	p.Structs = append(p.Structs, p.Exceptions...)
-	p.Structs = append(p.Structs, p.Unions...)
+
+	// Unions
+	// Field of union should all be optional.
+	for _, un := range p.Unions {
+		for _, f := range un.Fields {
+			if f.Requiredness != parser.ReqDefault {
+				log.Printf("union %v field %v: union members must be optional, ignoring specified requiredness\n", un.Name, f.Name)
+				f.Requiredness = parser.ReqDefault
+			}
+			f.Optional = true
+		}
+	}
+
 	if err = p.G.tmpl("structs.tmpl").Execute(&buf, p); err != nil {
+		return nil, err
+	}
+
+	if err = p.G.tmpl("unions.tmpl").Execute(&buf, p); err != nil {
 		return nil, err
 	}
 

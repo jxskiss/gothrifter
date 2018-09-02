@@ -29,7 +29,7 @@ func (b *bufReader) ReadByte() (c byte, err error) {
 }
 
 func (b *bufReader) Read(p []byte) (n int, err error) {
-	if n, err = b.rd.Read(p); err != nil {
+	if n, err = io.ReadFull(b.rd, p); err != nil {
 		return
 	}
 	if b.raw != nil {

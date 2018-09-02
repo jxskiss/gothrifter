@@ -1,0 +1,93 @@
+{{/* Package */}}
+
+{{ range $union := .Unions }}
+
+type {{ toCamelCase $union.Name }} struct {
+    {{ range $union.Fields }}
+    {{ toCamelCase .Name }} {{ if (isPtrField .) }}*{{ end }}{{ formatType .Type }} `{{ formatStructTag . }}`
+    {{ end }}
+}
+
+{{ if $union.DefaultFields }}
+// defaults
+{{ range $union.DefaultFields }}
+var {{ toCamelCase $union.Name }}_{{ toCamelCase .Name }}_DEFAULT {{ formatType .Type }} = {{ formatValue .Default }}
+{{ end }}
+{{ end }}
+
+{{ if $union.ZeroFields }}
+// zeros
+{{ range $union.ZeroFields }}
+var {{ toCamelCase $union.Name }}_{{ toCamelCase .Name }}_ZERO {{ formatType .Type }}
+{{ end }}
+{{ end }}
+
+func New{{ toCamelCase $union.Name }}() *{{ toCamelCase $union.Name }} {
+	return &{{ toCamelCase $union.Name }}{
+        {{ range $union.Fields }}
+        {{ if (and .Default (not .IsDefaultZero ) ) }}
+        {{ if (eq .Type.Category "container") }}
+        {{ toCamelCase .Name}} : {{ formatType .Type }}{{ formatValue .Default }},
+        {{ else }}
+        {{ toCamelCase .Name }} : {{ toCamelCase $union.Name }}_{{ toCamelCase .Name }}_DEFAULT,
+        {{ end }}
+        {{ end }}
+        {{ end }}
+	}
+}
+
+func (p *{{ toCamelCase .Name }}) CountSetFields() int {
+    count := 0
+    {{ range $union.Fields }}
+    if p.IsSet{{ toCamelCase .Name }}() {
+        count++
+    }
+    {{ end }}
+    return count
+}
+
+{{ range $union.Fields }}
+{{ $fname := ( toCamelCase .Name ) }}
+{{ $rptr := (and (isPtrField .) (eq .Type.Category "identifier") ) }}
+func (p *{{ toCamelCase $union.Name }}) Get{{ $fname }}() {{ if $rptr }}*{{ end }}{{ formatType .Type }} {
+    {{ if $rptr }}
+    return p.{{ $fname }}
+    {{ else }}
+    {{ if .Optional }}
+    if !p.IsSet{{ $fname }}() {
+        {{ if .Default }}
+            {{ if (eq .Type.Category "container" ) }}
+            return {{ formatType .Type }}{{ formatValue .Default }}
+            {{ else }}
+            return {{ toCamelCase $union.Name }}_{{ $fname }}_DEFAULT
+            {{ end }}
+        {{ else if (eq .Type.Category "basic" ) }}
+            return {{ toCamelCase $union.Name }}_{{ $fname }}_ZERO
+        {{ else }}
+            return nil
+        {{ end }}
+    }
+    {{ end }}
+    {{ if (isPtrField .) }}
+    return *p.{{ $fname }}
+    {{ else }}
+    return p.{{ $fname }}
+    {{ end }}
+    {{ end }}
+}
+{{ end }}
+
+{{ range $union.Fields }}
+{{ $fname := ( toCamelCase .Name ) }}
+func (p *{{ toCamelCase $union.Name }}) IsSet{{ $fname }}() bool {
+    {{ if (eq .Type.Category "container") }}
+    return p.{{ $fname }} != nil
+    {{ else if isPtrField . }}
+    return p.{{ $fname }} != nil
+    {{ else }}
+    return p.{{ $fname }} != {{ toCamelCase $union.Name }}_{{ $fname }}_DEFAULT
+    {{ end }}
+}
+{{ end }}
+
+{{ end }}
