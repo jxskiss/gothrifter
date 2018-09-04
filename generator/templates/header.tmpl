@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	thrift "github.com/jxskiss/gothrifter/lib/thrift2"
-	"github.com/jxskiss/gothrifter/lib/thrift2/general"
 
 	{{ range .Includes }}
 	{{ .Name }} "{{ .ImportPath }}"
@@ -23,7 +22,6 @@ var (
 	_ = context.Canceled
 	_ = fmt.Printf
 	_ = sync.WaitGroup{}
-	_ = general.MessageHeader{}
 	_ = thrift.BinaryVersion1
 
 	{{ range .Includes }}

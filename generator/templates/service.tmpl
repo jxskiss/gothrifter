@@ -67,7 +67,8 @@ func New{{ $svc.Name }}Server(h {{ $svc.Name }}Handler) *{{ $svc.Name }}Server {
 
 func (h {{ $svc.Name }}Server) Process(ctx context.Context, r thrift.Reader, w thrift.Writer) error {
 	type request struct {
-		header general.MessageHeader
+        method string
+        seqid  int32
 		args   interface{}
 	}
 	ch := make(chan request, MaxServerPipeline)
@@ -79,13 +80,9 @@ func (h {{ $svc.Name }}Server) Process(ctx context.Context, r thrift.Reader, w t
 	go func() {
 		defer wg.Done()
 		for req := range ch {
-			var rspHeader = general.MessageHeader{
-				MessageType: thrift.REPLY,
-				MessageName: req.header.MessageName,
-				SeqId:       req.header.SeqId,
-			}
+            var rspTypeid = thrift.REPLY
 			var rspBody interface{}
-			switch req.header.MessageName {
+			switch req.method {
 			{{ range $meth := $svc.Methods }}
 			case "{{ toCamelCase $meth.Name }}":
 			{{ if $meth.Arguments }} args := req.args.(*{{ $svc.Name }}{{ toCamelCase $meth.Name }}Args) {{ end }}
@@ -112,11 +109,11 @@ func (h {{ $svc.Name }}Server) Process(ctx context.Context, r thrift.Reader, w t
 					case *{{ formatType $exc.Type }}:
 						result.{{ toCamelCase $exc.Name }} = e {{ end }}
 					default:
-						rspHeader.MessageType = thrift.EXCEPTION
+					    rspTypeid = thrift.EXCEPTION
 						rspBody = thrift.FromErr(e)
 					}
 					{{ else }}
-					rspHeader.MessageType = thrift.EXCEPTION
+					rspTypeid = thrift.EXCEPTION
 					rspBody = thrift.FromErr(err)
 					{{ end }}
 				}
@@ -124,7 +121,7 @@ func (h {{ $svc.Name }}Server) Process(ctx context.Context, r thrift.Reader, w t
 			{{ end }}
 			}
 			// TODO: log or something?
-			if err := rspHeader.Write(w); err != nil {
+			if err := w.WriteMessageBegin(req.method, rspTypeid, req.seqid); err != nil {
 				return
 			}
 			if err := thrift.Write(rspBody, w); err != nil {
@@ -137,15 +134,15 @@ func (h {{ $svc.Name }}Server) Process(ctx context.Context, r thrift.Reader, w t
 	}()
 
 	for {
-		var reqHeader general.MessageHeader
-		if err := reqHeader.Read(r); err != nil {
+        name, typeid, seqid, err := r.ReadMessageBegin()
+        if err != nil {
 			return err
 		}
-		if reqHeader.MessageType != thrift.CALL {
-			return thrift.ErrMessageType
+		if typeid != thrift.CALL {
+		    return thrift.ErrMessageType
 		}
-		var req = request{header: reqHeader}
-		switch reqHeader.MessageName {
+		var req = request{ method: name, seqid:  seqid }
+		switch name {
 		{{ range $meth := $svc.Methods }}
 		case "{{ toCamelCase $meth.Name }}":
 			req.args = New{{ $svc.Name }}{{ toCamelCase $meth.Name }}Args()
