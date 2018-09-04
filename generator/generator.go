@@ -523,7 +523,7 @@ func (rc *ReqChecker) Set(fieldId int) string {
 	if !ok {
 		return ""
 	}
-	tmpl := "issetmask[%v] &= 0x%x"
+	tmpl := "issetmask[%v] |= 0x%x"
 	return fmt.Sprintf(tmpl, req.id/64, req.mask)
 }
 
