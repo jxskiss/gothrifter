@@ -21,7 +21,7 @@ var (
 	logger = log.New(os.Stderr, "[THRIFTERC] ", log.LstdFlags)
 	//pprint  = spew.ConfigState{DisableMethods: true, Indent: "  "}
 	tmplBox    = packr.NewBox("./templates")
-	mlineRegex = regexp.MustCompile(`([\r\n]+\s*){2,}([\w\}\]\)/]+)`)
+	mlineRegex = regexp.MustCompile(`([\r\n]+\s*){2,}([\w\}\]\)/'"]+)`)
 )
 
 var GitRevision = "????"

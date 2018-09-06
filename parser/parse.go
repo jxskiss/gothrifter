@@ -228,12 +228,15 @@ func (p *Thrift) parseEnum(node *node32) *Enum {
 		if n.pegRule == ruleIdentifier {
 			var v EnumValue
 			v.Name = p.parsePegText(n)
-			if p.parsePegText(n.next) == "=" {
+			// TODO: maybe we should fail if value not set explicitly?
+			// fbthrift:
+			// FAULURE: Unset enum value XX in enum YY. Add an explicit value to suppress this error.
+			if n.next.pegRule == ruleEQUAL {
 				n = n.next.next
 				v.Value, _ = strconv.Atoi(p.parsePegText(n))
 			} else {
 				if len(values) == 0 {
-					v.Value = 1
+					v.Value = 0
 				} else {
 					v.Value = preValue + 1
 				}
