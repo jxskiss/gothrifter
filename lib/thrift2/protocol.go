@@ -125,6 +125,23 @@ func NewProtocol(rw io.ReadWriter, opts options) *Protocol {
 	return p
 }
 
+func (p *Protocol) UseBinary() error {
+	if p.protoID == ProtocolIDBinary {
+		return nil
+	}
+	p.protoID = ProtocolIDBinary
+	return p.ResetProtocol()
+}
+
+func (p *Protocol) UseCompact(version int) error {
+	if p.protoID == ProtocolIDCompact && p.compactVer == version {
+		return nil
+	}
+	p.protoID = ProtocolIDCompact
+	p.compactVer = version
+	return p.ResetProtocol()
+}
+
 func (p *Protocol) ResetProtocol() error {
 	if p.Reader != nil && p.header != nil && p.protoID == p.header.protoID {
 		return nil
@@ -157,10 +174,7 @@ func (p *Protocol) Reset(rw io.ReadWriter) {
 }
 
 func (p *Protocol) resetHeader(rw io.ReadWriter) {
-	header := NewHeaderTransport(rw)
-	header.protoID = p.header.protoID
-	header.maxFramesize = p.header.maxFramesize
-	p.header = header
+	p.header.ResetTransport(rw)
 	p.bufr.Reset(p.header)
 	p.bufw.Reset(p.header)
 }
@@ -198,19 +212,12 @@ func (p *Protocol) preReadMessageBegin() (protoID ProtocolID, err error) {
 			err = fmt.Errorf("unexpected compact version %02x", version)
 			return
 		}
-		if p.protoID != ProtocolIDCompact || p.compactVer != version {
-			p.protoID = ProtocolIDCompact
-			p.compactVer = version
-			if err = p.ResetProtocol(); err != nil {
-				return
-			}
+		if err = p.UseCompact(version); err != nil {
+			return
 		}
 	} else { // binary protocol
-		if p.protoID != ProtocolIDBinary {
-			p.protoID = ProtocolIDBinary
-			if err = p.ResetProtocol(); err != nil {
-				return
-			}
+		if err = p.UseBinary(); err != nil {
+			return
 		}
 	}
 	return p.protoID, nil

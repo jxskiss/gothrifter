@@ -83,6 +83,15 @@ func NewHeaderTransport(transport io.ReadWriter) *HeaderTransport {
 	}
 }
 
+func (t *HeaderTransport) ResetTransport(transport io.ReadWriter) {
+	t.transport = transport
+	t.rbuf.Reset(transport)
+	t.wbuf.Reset()
+	t.frameSize = 0
+	t.writeInfoHeaders = map[string]string{}
+	t.persistentWriteInfoHeaders = map[string]string{}
+}
+
 func (t *HeaderTransport) SetSeqID(seq uint32) {
 	t.seqID = seq
 }

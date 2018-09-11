@@ -30,7 +30,7 @@ var DefaultOptions = options{
 	maxActive: 10000,
 	rbufsz:    2048,
 	wbufsz:    2048,
-	nocopy:    true,
+	//nocopy:    true,
 	header:    false,
 	protoID:   ProtocolIDBinary,
 }
@@ -67,9 +67,16 @@ func WithFramed(max int) Option {
 	}
 }
 
-func WithHeader(enable bool) Option {
+func WithHeader() Option {
 	return func(o options) options {
-		o.header = enable
+		o.header = true
+		return o
+	}
+}
+
+func DisableHeader() Option {
+	return func(o options) options {
+		o.header = false
 		return o
 	}
 }
