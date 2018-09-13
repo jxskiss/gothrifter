@@ -106,7 +106,29 @@ func (p *Server) process(client net.Conn) {
 	defer p.ppool.Put(prot)
 
 	prot.Reset(client)
-	if err := p.processor.Process(context.Background(), prot, prot); err != nil && err != io.EOF {
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, protocolCtxKey{}, prot)
+	ctx = context.WithValue(ctx, remoteAddrCtxKey{}, client.RemoteAddr().String())
+	if err := p.processor.Process(ctx, prot, prot); err != nil && err != io.EOF {
 		log.Printf("server: process client %s error: %s\n", client.RemoteAddr(), err)
 	}
+}
+
+type (
+	protocolCtxKey   struct{}
+	remoteAddrCtxKey struct{}
+)
+
+func ProtocolFromCtx(ctx context.Context) *Protocol {
+	if p, ok := ctx.Value(protocolCtxKey{}).(*Protocol); ok {
+		return p
+	}
+	return nil
+}
+
+func RemoteAddrFromCtx(ctx context.Context) string {
+	if addr, ok := ctx.Value(remoteAddrCtxKey{}).(string); ok {
+		return addr
+	}
+	return ""
 }

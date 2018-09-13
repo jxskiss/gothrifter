@@ -243,7 +243,8 @@ func (t *HeaderTransport) ResetProtocol() error {
 	// Consume the header from the input stream
 	err := hdr.Read(t.rbuf)
 	if err != nil {
-		return FromErr(err)
+		//return FromErr(err)
+		return err
 	}
 
 	// Set new header
@@ -266,12 +267,14 @@ func (t *HeaderTransport) ResetProtocol() error {
 	for _, trans := range hdr.transforms {
 		xformer, terr := trans.Untransformer()
 		if terr != nil {
-			return FromErr(terr)
+			//return FromErr(terr)
+			return terr
 		}
 
 		t.framebuf, terr = xformer(t.framebuf)
 		if terr != nil {
-			return FromErr(terr)
+			//return FromErr(terr)
+			return terr
 		}
 	}
 
@@ -279,7 +282,8 @@ func (t *HeaderTransport) ResetProtocol() error {
 	if len(hdr.transforms) > 0 {
 		err = t.applyUntransform()
 		if err != nil {
-			return FromErr(err)
+			//return FromErr(err)
+			return err
 		}
 	}
 
@@ -318,28 +322,28 @@ func (t *HeaderTransport) ReadByte() (byte, error) {
 // Write Write multiple bytes to the framebuffer, does not send to transport.
 func (t *HeaderTransport) Write(buf []byte) (int, error) {
 	n, err := t.wbuf.Write(buf)
-	if err != nil {
-		err = FromErr(err)
-	}
+	//if err != nil {
+	//	err = FromErr(err)
+	//}
 	return n, err
 }
 
 // WriteByte Write a single byte to the framebuffer, does not send to transport.
 func (t *HeaderTransport) WriteByte(c byte) error {
 	err := t.wbuf.WriteByte(c)
-	if err != nil {
-		err = FromErr(err)
-	}
+	//if err != nil {
+	//	err = FromErr(err)
+	//}
 	return err
 }
 
 // WriteString Write a string to the framebuffer, does not send to transport.
 func (t *HeaderTransport) WriteString(s string) (int, error) {
 	n, err := t.wbuf.WriteString(s)
-	if err != nil {
-		return n, FromErr(err)
-	}
-	return n, nil
+	//if err != nil {
+	//	err = FromErr(err)
+	//}
+	return n, err
 }
 
 // RemainingBytes Return how many bytes remain in the current recv framebuffer.
@@ -395,25 +399,29 @@ func (t *HeaderTransport) flushHeader() error {
 
 	outbuf, err := applyTransforms(t.wbuf, t.writeTransforms)
 	if err != nil {
-		return FromErr(err)
+		//return FromErr(err)
+		return err
 	}
 	t.wbuf = outbuf
 
 	hdr.payloadLen = uint64(t.wbuf.Len())
 	err = hdr.calcLenFromPayload()
 	if err != nil {
-		return FromErr(err)
+		//return FromErr(err)
+		return err
 	}
 
 	hdrbuf := bytes.NewBuffer(make([]byte, 64))
 	hdrbuf.Reset()
 	err = hdr.Write(hdrbuf)
 	if err != nil {
-		return FromErr(err)
+		//return FromErr(err)
+		return err
 	}
 
 	if _, err = hdrbuf.WriteTo(t.transport); err != nil {
-		return FromErr(err)
+		//return FromErr(err)
+		return err
 	}
 	return nil
 }
@@ -431,7 +439,8 @@ func (t *HeaderTransport) flushFramed() error {
 
 	err := binary.Write(t.transport, binary.BigEndian, framesize)
 	if err != nil {
-		return FromErr(err)
+		//return FromErr(err)
+		return err
 	}
 	return nil
 }
@@ -468,7 +477,8 @@ func (t *HeaderTransport) Flush() error {
 	// Writeout the payload
 	if t.wbuf.Len() > 0 {
 		if _, err = t.wbuf.WriteTo(t.transport); err != nil {
-			return FromErr(err)
+			//return FromErr(err)
+			return err
 		}
 	}
 

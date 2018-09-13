@@ -75,6 +75,13 @@ func NewSerializer() *Serializer {
 	return s
 }
 
+// NewCompactSerializer create a new serializer using the compact protocol.
+func NewCompactSerializer() *Serializer {
+	s := &Serializer{buf: &bytes.Buffer{}}
+	s.prot = NewProtocol(s.buf, WithCompact()(DefaultOptions))
+	return s
+}
+
 // WriteString writes msg to the serializer and returns it as a string.
 func (s *Serializer) WriteString(msg Writable) (str string, err error) {
 	s.buf.Reset()
@@ -113,6 +120,13 @@ func NewDeserializer() *Deserializer {
 	return ds
 }
 
+// NewCompactDeserializer create a new deserializer using the compact protocol.
+func NewCompactDeserializer() *Deserializer {
+	ds := &Deserializer{buf: &bytes.Buffer{}}
+	ds.prot = NewProtocol(ds.buf, WithCompact()(DefaultOptions))
+	return ds
+}
+
 func (ds *Deserializer) ReadString(msg Readable, s string) (err error) {
 	ds.buf.Reset()
 	ds.prot.Reset(ds.buf)
@@ -129,18 +143,4 @@ func (ds *Deserializer) Read(msg Readable, b []byte) (err error) {
 		return err
 	}
 	return msg.Read(ds.prot)
-}
-
-// NewCompactSerializer create a new serializer using the compact protocol.
-func NewCompactSerializer() *Serializer {
-	s := &Serializer{buf: &bytes.Buffer{}}
-	s.prot = NewProtocol(s.buf, WithCompact()(DefaultOptions))
-	return s
-}
-
-// NewCompactDeserializer create a new deserializer using the compact protocol.
-func NewCompactDeserializer() *Deserializer {
-	ds := &Deserializer{buf: &bytes.Buffer{}}
-	ds.prot = NewProtocol(ds.buf, WithCompact()(DefaultOptions))
-	return ds
 }

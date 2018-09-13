@@ -160,6 +160,42 @@ func (p *Package) Generate() error {
 		return err
 	}
 
+	if len(p.Services) > 0 {
+		// go-kit server
+		kitserverFile, err := filepath.Abs(filepath.Join(outDir, "kitserver.go"))
+		if err != nil {
+			return err
+		}
+		buf.Reset()
+		if err = p.G.tmpl("kitserver.tmpl").Execute(&buf, p); err != nil {
+			log.Println("kitserver:", err)
+			return err
+		}
+		if code, err = p.G.formatCode(buf.Bytes()); err != nil {
+			return err
+		}
+		if err = ioutil.WriteFile(kitserverFile, code, 0644); err != nil {
+			return err
+		}
+
+		// go-kit client
+		kitclientFile, err := filepath.Abs(filepath.Join(outDir, "kitclient.go"))
+		if err != nil {
+			return err
+		}
+		buf.Reset()
+		if err = p.G.tmpl("kitclient.tmpl").Execute(&buf, p); err != nil {
+			log.Println("kitclient:", err)
+			return err
+		}
+		if code, err = p.G.formatCode(buf.Bytes()); err != nil {
+			return err
+		}
+		if err = ioutil.WriteFile(kitclientFile, code, 0644); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

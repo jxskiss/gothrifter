@@ -151,11 +151,15 @@ func (p *Protocol) ResetProtocol() error {
 	}
 	switch p.protoID {
 	case ProtocolIDBinary:
-		p.Reader = (*binaryReader)(p.bufr)
-		p.Writer = (*binaryWriter)(p.bufw)
+		if _, ok := p.Reader.(*binaryReader); !ok {
+			p.Reader = (*binaryReader)(p.bufr)
+			p.Writer = (*binaryWriter)(p.bufw)
+		}
 	case ProtocolIDCompact:
-		p.Reader = (*compactReader)(p.bufr)
-		p.Writer = (*compactWriter)(p.bufw)
+		if _, ok := p.Reader.(*compactReader); !ok {
+			p.Reader = (*compactReader)(p.bufr)
+			p.Writer = (*compactWriter)(p.bufw)
+		}
 	default:
 		return fmt.Errorf("unknow protocol id: %#x", p.protoID)
 	}
@@ -223,14 +227,16 @@ func (p *Protocol) preReadMessageBegin() (protoID ProtocolID, err error) {
 	return p.protoID, nil
 }
 
-func (p *Protocol) preWriteMessageBegin(name string, typeId MessageType, seqid int32) error {
-	p.ResetProtocol()
+func (p *Protocol) preWriteMessageBegin(name string, typeId MessageType, seqid int32) (protoID ProtocolID, err error) {
+	if err = p.ResetProtocol(); err != nil {
+		return
+	}
 	if p.header != nil {
 		if typeId == CALL || typeId == ONEWAY {
 			p.header.SetSeqID(uint32(seqid))
 		}
 	}
-	return nil
+	return p.protoID, nil
 }
 
 func (p *Protocol) postFlush() (err error) {

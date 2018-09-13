@@ -2,20 +2,28 @@
 
 {{ range $name, $svc := .Services }}
 
-{{ formatArguments $svc }}
-
-type {{ $svc.Name }}Client struct {
-	thrift.Client
+type {{ $svc.Name }}Handler interface {
+	{{ range $meth := $svc.Methods }}
+	{{ toCamelCase $meth.Name }}(ctx context.Context, {{ range $meth.Arguments }}{{ .Name }} {{ if (isPtrType .Type) }}*{{ end }}{{ formatType .Type }}, {{ end }} ) (
+		{{ if (not (or $meth.Oneway (eq $meth.ReturnType.Name "void"))) }} {{ formatReturn $meth.ReturnType }}, {{ end }} error)
+	{{ end }}
 }
 
-func New{{ $svc.Name }}Client(cli thrift.Client) *{{ $svc.Name }}Client {
-	return &{{ $svc.Name }}Client{Client: cli}
+{{ formatArguments $svc }}
+
+// {{ $svc.Name }}Client implements the {{ $svc.Name }}Handler interface.
+type {{ $svc.Name }}Client struct {
+	thrift.Invoker
+}
+
+func New{{ $svc.Name }}Client(cli thrift.Invoker) *{{ $svc.Name }}Client {
+	return &{{ $svc.Name }}Client{cli}
 }
 
 {{ range $meth := $svc.Methods }}
 func (cli *{{ $svc.Name }}Client) {{ toCamelCase $meth.Name }}(
     ctx context.Context,
-	{{ range $meth.Arguments }}{{ .Name }} {{ if (eq .Type.Category "identifier") }}*{{ end }}{{ formatType .Type }}, {{ end }}
+	{{ range $meth.Arguments }}{{ .Name }} {{ if (isPtrType .Type) }}*{{ end }}{{ formatType .Type }}, {{ end }}
 ) ( {{ if (not (or $meth.Oneway (eq $meth.ReturnType.Name "void"))) }} {{ formatReturn $meth.ReturnType }}, {{ end }} error) {
 	args := &{{ $svc.Name }}{{ toCamelCase $meth.Name }}Args{
 		{{ range $meth.Arguments }}
@@ -23,16 +31,16 @@ func (cli *{{ $svc.Name }}Client) {{ toCamelCase $meth.Name }}(
 		{{ end }}
 	}
 	{{ if $meth.Oneway }}
-	err := cli.Client.Invoke(ctx, "{{ toCamelCase $meth.Name }}", args, nil)
+	err := cli.Invoker.Invoke(ctx, "{{ toCamelCase $meth.Name }}", args, nil)
 	return err
 	{{ else if (eq $meth.ReturnType.Name "void") }}
 	result := New{{ $svc.Name }}{{ toCamelCase $meth.Name }}Result()
-	err := cli.Client.Invoke(ctx, "{{ toCamelCase $meth.Name }}", args, result)
+	err := cli.Invoker.Invoke(ctx, "{{ toCamelCase $meth.Name }}", args, result)
 	return err
 	{{ else }}
 	result := New{{ $svc.Name }}{{ toCamelCase $meth.Name }}Result()
 	zero := result.Success
-	err := cli.Client.Invoke(ctx, "{{ toCamelCase $meth.Name }}", args, result)
+	err := cli.Invoker.Invoke(ctx, "{{ toCamelCase $meth.Name }}", args, result)
 	if err != nil {
 		return zero, err
 	}
@@ -50,88 +58,23 @@ func (cli *{{ $svc.Name }}Client) {{ toCamelCase $meth.Name }}(
 }
 {{ end }}
 
-type {{ $svc.Name }}Handler interface {
-	{{ range $meth := $svc.Methods }}
-	{{ toCamelCase $meth.Name }}(ctx context.Context, {{ range $meth.Arguments }}{{ .Name }} {{ if (eq .Type.Category "identifier") }}*{{ end }}{{ formatType .Type }}, {{ end }} ) (
-		{{ if (not (or $meth.Oneway (eq $meth.ReturnType.Name "void"))) }} {{ formatReturn $meth.ReturnType }}, {{ end }} error)
-	{{ end }}
-}
-
-type {{ $svc.Name }}Server struct {
+// {{ $svc.Name }}Server implements the thrift.Processor interface.
+type {{ $svc.Name }}Processor struct {
 	handler {{ $svc.Name }}Handler
 }
 
-func New{{ $svc.Name }}Server(h {{ $svc.Name }}Handler) *{{ $svc.Name }}Server {
-	return &{{ $svc.Name }}Server{handler: h}
+func New{{ $svc.Name }}Processor(h {{ $svc.Name }}Handler) *{{ $svc.Name }}Processor {
+	return &{{ $svc.Name }}Processor{handler: h}
 }
 
-func (h {{ $svc.Name }}Server) Process(ctx context.Context, r thrift.Reader, w thrift.Writer) error {
+func (h {{ $svc.Name }}Processor) Process(ctx context.Context, r thrift.Reader, w thrift.Writer) error {
 	type request struct {
         method string
         seqid  int32
 		args   interface{}
 	}
-	ch := make(chan request, MaxServerPipeline)
 	ctx, cancel := context.WithCancel(ctx)
-	var wg sync.WaitGroup
-	defer func() { close(ch); cancel(); wg.Wait() }()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for req := range ch {
-            var rspTypeid = thrift.REPLY
-			var rspBody interface{}
-			switch req.method {
-			{{ range $meth := $svc.Methods }}
-			case "{{ toCamelCase $meth.Name }}":
-			{{ if $meth.Arguments }} args := req.args.(*{{ $svc.Name }}{{ toCamelCase $meth.Name }}Args) {{ end }}
-			{{ if $meth.Oneway }}
-				err := h.handler.{{ toCamelCase $meth.Name }}(ctx, {{ range $meth.Arguments }}args.{{ toCamelCase .Name }}, {{ end }} )
-				if err != nil {
-					// TODO
-				}
-				continue
-			{{ else if (eq $meth.ReturnType.Name "void" ) }}
-				result := New{{ $svc.Name }}{{ toCamelCase $meth.Name }}Result()
-				err := h.handler.{{ toCamelCase $meth.Name }}(ctx, {{ range $meth.Arguments }}args.{{ toCamelCase .Name }}, {{ end }} )
-			{{ else }}
-				result := New{{ $svc.Name }}{{ toCamelCase $meth.Name }}Result()
-				ret, err := h.handler.{{ toCamelCase $meth.Name }}(ctx, {{ range $meth.Arguments }}args.{{ toCamelCase .Name }}, {{ end }} )
-				result.Success = ret
-			{{ end }}
-			{{ if (not $meth.Oneway) }}
-				rspBody = result
-				if err != nil {
-					{{ if $meth.Exceptions }}
-					switch e := err.(type) {
-					{{ range $exc := $meth.Exceptions }}
-					case *{{ formatType $exc.Type }}:
-						result.{{ toCamelCase $exc.Name }} = e {{ end }}
-					default:
-					    rspTypeid = thrift.EXCEPTION
-						rspBody = thrift.FromErr(e)
-					}
-					{{ else }}
-					rspTypeid = thrift.EXCEPTION
-					rspBody = thrift.FromErr(err)
-					{{ end }}
-				}
-			{{ end }}
-			{{ end }}
-			}
-			// TODO: log or something?
-			if err := w.WriteMessageBegin(req.method, rspTypeid, req.seqid); err != nil {
-				return
-			}
-			if err := thrift.Write(rspBody, w); err != nil {
-				return
-			}
-			if err := w.Flush(); err != nil {
-				return
-			}
-		}
-	}()
+	defer cancel()
 
 	for {
         name, typeid, seqid, err := r.ReadMessageBegin()
@@ -141,8 +84,10 @@ func (h {{ $svc.Name }}Server) Process(ctx context.Context, r thrift.Reader, w t
 		if typeid != thrift.CALL {
 		    return thrift.ErrMessageType
 		}
+
+		ctx = context.WithValue(ctx, "METHOD", name)
 		var req = request{ method: name, seqid:  seqid }
-		switch name {
+		switch req.method {
 		{{ range $meth := $svc.Methods }}
 		case "{{ toCamelCase $meth.Name }}":
 			req.args = New{{ $svc.Name }}{{ toCamelCase $meth.Name }}Args()
@@ -153,7 +98,59 @@ func (h {{ $svc.Name }}Server) Process(ctx context.Context, r thrift.Reader, w t
 		if err := thrift.Read(req.args, r); err != nil {
 			return err
 		}
-		ch <- req
+
+        var rspTypeid = thrift.REPLY
+        var rspBody interface{}
+        switch req.method {
+        {{ range $meth := $svc.Methods }}
+        case "{{ toCamelCase $meth.Name }}":
+        {{ if $meth.Arguments }} args := req.args.(*{{ $svc.Name }}{{ toCamelCase $meth.Name }}Args) {{ end }}
+        {{ if $meth.Oneway }}
+            // oneway
+            err := h.handler.{{ toCamelCase $meth.Name }}(ctx, {{ range $meth.Arguments }}args.{{ toCamelCase .Name }}, {{ end }} )
+            if err != nil {
+                // TODO
+            }
+            continue
+        {{ else if (eq $meth.ReturnType.Name "void" ) }}
+            // void
+            result := New{{ $svc.Name }}{{ toCamelCase $meth.Name }}Result()
+            err := h.handler.{{ toCamelCase $meth.Name }}(ctx, {{ range $meth.Arguments }}args.{{ toCamelCase .Name }}, {{ end }} )
+        {{ else }}
+            result := New{{ $svc.Name }}{{ toCamelCase $meth.Name }}Result()
+            ret, err := h.handler.{{ toCamelCase $meth.Name }}(ctx, {{ range $meth.Arguments }}args.{{ toCamelCase .Name }}, {{ end }} )
+            result.Success = ret
+        {{ end }}
+        {{ if (not $meth.Oneway) }}
+            rspBody = result
+            if err != nil {
+                {{ if $meth.Exceptions }}
+                switch e := err.(type) {
+                {{ range $exc := $meth.Exceptions }}
+                case *{{ formatType $exc.Type }}:
+                    result.{{ toCamelCase $exc.Name }} = e {{ end }}
+                default:
+                    rspTypeid = thrift.EXCEPTION
+                    rspBody = thrift.FromErr(e)
+                }
+                {{ else }}
+                rspTypeid = thrift.EXCEPTION
+                rspBody = thrift.FromErr(err)
+                {{ end }}
+            }
+        {{ end }}
+        {{ end }}
+        }
+        // TODO: log or something?
+        if err := w.WriteMessageBegin(req.method, rspTypeid, req.seqid); err != nil {
+            return err
+        }
+        if err := thrift.Write(rspBody, w); err != nil {
+            return err
+        }
+        if err := w.Flush(); err != nil {
+            return err
+        }
 	}
 }
 

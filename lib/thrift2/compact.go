@@ -282,9 +282,15 @@ func (w *compactWriter) version() byte {
 }
 
 func (w *compactWriter) WriteMessageBegin(name string, typeId MessageType, seqid int32) error {
-	if err := w.prot.preWriteMessageBegin(name, typeId, seqid); err != nil {
+	protoID, err := w.prot.preWriteMessageBegin(name, typeId, seqid)
+	if err != nil {
 		return err
 	}
+	// the protocol may be changed during preWriteMessageBegin
+	if protoID != ProtocolIDCompact {
+		return w.prot.WriteMessageBegin(name, typeId, seqid)
+	}
+
 	if err := w.WriteByte(COMPACT_PROTOCOL_ID); err != nil {
 		return err
 	}

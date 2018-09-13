@@ -199,9 +199,15 @@ func (r *binaryReader) ReadRaw(fieldType Type) (raw []byte, err error) {
 type binaryWriter bufWriter
 
 func (w *binaryWriter) WriteMessageBegin(name string, typeId MessageType, seqid int32) error {
-	if err := w.prot.preWriteMessageBegin(name, typeId, seqid); err != nil {
+	protoID, err := w.prot.preWriteMessageBegin(name, typeId, seqid)
+	if err != nil {
 		return err
 	}
+	// the protocol may be changed during preWriteMessageBegin
+	if protoID != ProtocolIDBinary {
+		return w.prot.WriteMessageBegin(name, typeId, seqid)
+	}
+
 	verAndType := uint32(BinaryVersion1) | uint32(typeId)
 	if err := w.WriteI32(int32(verAndType)); err != nil {
 		return err

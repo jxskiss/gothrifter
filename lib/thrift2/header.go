@@ -436,7 +436,8 @@ func (hdr *tHeader) Read(buf *bufio.Reader) error {
 	)
 
 	if wordbuf, err = buf.Peek(4); err != nil {
-		return FromErr(err)
+		//return FromErr(err)
+		return err
 	}
 	firstword = binary.BigEndian.Uint32(wordbuf)
 
@@ -471,12 +472,14 @@ func (hdr *tHeader) Read(buf *bufio.Reader) error {
 	_, err = buf.Discard(4)
 	if err != nil {
 		// Shouldn't be possible to fail here, but check anyways
-		return FromErr(err)
+		//return FromErr(err)
+		return err
 	}
 
 	// Only peek here. If it was framed transport, we are now reading payload.
 	if wordbuf, err = buf.Peek(4); err != nil {
-		return FromErr(err)
+		//return FromErr(err)
+		return err
 	}
 	secondword = binary.BigEndian.Uint32(wordbuf)
 
@@ -489,19 +492,22 @@ func (hdr *tHeader) Read(buf *bufio.Reader) error {
 	_, err = buf.Discard(4)
 	if err != nil {
 		// Shouldn't be possible to fail here, but check anyways
-		return FromErr(err)
+		//return FromErr(err)
+		return err
 	}
 
 	// Assume header protocol from here on in, parse rest of header
 	hdr.flags = uint16(secondword & FlagsMask)
 	err = binary.Read(buf, binary.BigEndian, &hdr.seq)
 	if err != nil {
-		return FromErr(err)
+		//return FromErr(err)
+		return err
 	}
 
 	err = binary.Read(buf, binary.BigEndian, &hdr.headerLen)
 	if err != nil {
-		return FromErr(err)
+		//return FromErr(err)
+		return err
 	}
 
 	if uint32(hdr.headerLen*4) > MaxHeaderSize {
