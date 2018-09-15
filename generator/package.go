@@ -2,7 +2,7 @@ package generator
 
 import (
 	"bytes"
-	"github.com/jxskiss/gothrifter/parser"
+	"github.com/jxskiss/thriftkit/parser"
 	"io/ioutil"
 	"log"
 	"os"

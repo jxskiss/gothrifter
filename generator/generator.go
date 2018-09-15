@@ -13,7 +13,7 @@ import (
 	"text/template"
 
 	"github.com/gobuffalo/packr"
-	"github.com/jxskiss/gothrifter/parser"
+	"github.com/jxskiss/thriftkit/parser"
 )
 
 var (
@@ -25,7 +25,7 @@ var (
 )
 
 var GitRevision = "????"
-var Version = "0.1.0-" + GitRevision
+var Version = "0.2.0-" + GitRevision
 
 type Generator struct {
 	Filename string

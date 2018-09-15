@@ -1,7 +1,7 @@
 package reflection
 
 import (
-	thrift "github.com/jxskiss/gothrifter/lib/thrift"
+	thrift "github.com/jxskiss/thriftkit/lib/thrift"
 	"reflect"
 	"unsafe"
 )

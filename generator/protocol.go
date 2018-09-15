@@ -3,7 +3,7 @@ package generator
 import (
 	"bytes"
 	"fmt"
-	"github.com/jxskiss/gothrifter/parser"
+	"github.com/jxskiss/thriftkit/parser"
 	"strings"
 )
 

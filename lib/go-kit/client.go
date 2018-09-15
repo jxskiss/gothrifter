@@ -10,7 +10,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/sd"
 	"github.com/go-kit/kit/sd/lb"
-	"github.com/jxskiss/gothrifter/lib/thrift"
+	"github.com/jxskiss/thriftkit/lib/thrift"
 	"github.com/rs/xid"
 )
 

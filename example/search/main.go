@@ -3,14 +3,14 @@ package main
 import (
 	"context"
 	"flag"
-	"github.com/jxskiss/gothrifter/example/search/gen-thrifter/search"
-	"github.com/jxskiss/gothrifter/lib/go-kit"
-	"github.com/jxskiss/gothrifter/lib/thrift"
+	"github.com/jxskiss/thriftkit/example/search/gen-thrifter/search"
+	"github.com/jxskiss/thriftkit/lib/go-kit"
+	"github.com/jxskiss/thriftkit/lib/thrift"
 	"log"
 	"time"
 )
 
-//go:generate go run ../../main.go -prefix github.com/jxskiss/gothrifter/example/search -idl service.thrift
+//go:generate go run ../../main.go -prefix github.com/jxskiss/thriftkit/example/search -idl service.thrift
 
 func main() {
 	server := flag.Bool("server", false, "run server")

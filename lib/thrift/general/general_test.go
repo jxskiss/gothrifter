@@ -3,7 +3,7 @@ package general
 import (
 	"bytes"
 	"encoding/hex"
-	thrift "github.com/jxskiss/gothrifter/lib/thrift"
+	thrift "github.com/jxskiss/thriftkit/lib/thrift"
 	"github.com/matryer/is"
 	"io"
 	"testing"

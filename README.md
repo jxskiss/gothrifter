@@ -47,4 +47,4 @@ It's TOTALLY NOT ready to be used in any production environment.
 
 - [ ] Rename the `Server` implementation as `SimpleServer`
 
-- [ ] Rename project to thriftkit
+- [x] Rename project to thriftkit

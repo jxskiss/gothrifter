@@ -1,2 +1,4 @@
 .idea/
 example/*/gen-thrifter/
+thriftkit.exe
+thriftkit

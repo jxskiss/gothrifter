@@ -2,7 +2,7 @@ package reflection
 
 import (
 	"fmt"
-	thrift "github.com/jxskiss/gothrifter/lib/thrift"
+	thrift "github.com/jxskiss/thriftkit/lib/thrift"
 	"reflect"
 	"strconv"
 	"strings"

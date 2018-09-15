@@ -2,7 +2,7 @@ package reflection
 
 import (
 	"bytes"
-	thrift "github.com/jxskiss/gothrifter/lib/thrift"
+	thrift "github.com/jxskiss/thriftkit/lib/thrift"
 )
 
 func Marshal(val interface{}) ([]byte, error) {

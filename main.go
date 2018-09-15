@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 
 	//"github.com/davecgh/go-spew/spew"
-	"github.com/jxskiss/gothrifter/generator"
-	"github.com/jxskiss/gothrifter/parser"
+	"github.com/jxskiss/thriftkit/generator"
+	"github.com/jxskiss/thriftkit/parser"
 )
 
 func main() {
