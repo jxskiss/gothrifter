@@ -61,14 +61,14 @@ func New{{ $svc.Name }}KitClientSimpleConsul(caller, service string, opts ...thr
 {{ range $meth := $svc.Methods }}
 func (cli *{{ $svc.Name }}KitClient) {{ toCamelCase $meth.Name }}(
     ctx context.Context,
-	{{ range $meth.Arguments }}{{ .Name }} {{ if (eq .Type.Category "identifier") }}*{{ end }}{{ formatType .Type }}, {{ end }}
+	{{ range $meth.Arguments }}{{ .Name }} {{ if (isPtrType .Type) }}*{{ end }}{{ formatType .Type }}, {{ end }}
 ) ( {{ if (not (or $meth.Oneway (eq $meth.ReturnType.Name "void"))) }} {{ formatReturn $meth.ReturnType }}, {{ end }} error) {
     {{ if (or $meth.Oneway (eq $meth.ReturnType.Name "void") ) }}
     // {{ if $meth.Oneway }}oneway{{ else }}void{{ end }}
-    _, err := cli.kc.Call("{{ toCamelCase $meth.Name }}", ctx, nil)
+    _, err := cli.kc.Call("{{ toCamelCase $meth.Name }}", ctx, {{ if $meth.Arguments }}{{ (index $meth.Arguments 0).Name }}{{ else }}nil{{ end }})
     return err
     {{ else }}
-    rsp, err := cli.kc.Call("{{ toCamelCase $meth.Name }}", ctx, req)
+    rsp, err := cli.kc.Call("{{ toCamelCase $meth.Name }}", ctx, {{ if $meth.Arguments }}{{ (index $meth.Arguments 0).Name }}{{ else }}nil{{ end }})
     if err != nil {
         return nil, err
     }

@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -109,8 +110,10 @@ func (p *Server) process(client net.Conn) {
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, protocolCtxKey{}, prot)
 	ctx = context.WithValue(ctx, remoteAddrCtxKey{}, client.RemoteAddr().String())
-	if err := p.processor.Process(ctx, prot, prot); err != nil && err != io.EOF {
-		log.Printf("server: process client %s error: %s\n", client.RemoteAddr(), err)
+	if err := p.processor.Process(ctx, prot, prot); err != nil {
+		if err != io.EOF && !isForciblyClosed(err) {
+			log.Printf("server: process client %s error: %s\n", client.RemoteAddr(), err)
+		}
 	}
 }
 
@@ -131,4 +134,11 @@ func RemoteAddrFromCtx(ctx context.Context) string {
 		return addr
 	}
 	return ""
+}
+
+func isForciblyClosed(err error) bool {
+	if e, ok := err.(*net.OpError); ok {
+		return strings.Contains(e.Err.Error(), "forcibly closed")
+	}
+	return false
 }

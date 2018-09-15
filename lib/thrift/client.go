@@ -77,10 +77,10 @@ func (cli *client) Invoke(ctx context.Context, method string, arg, ret interface
 	prot.Reset(conn)
 	defer cli.ppool.Put(prot)
 
-	reqCtx := context.WithValue(ctx, clientConnCtxKey{}, conn)
-	reqCtx = context.WithValue(ctx, clientProtocolCtxKey{}, prot)
-	err = invoke(reqCtx, method, arg, ret)
-	if err != nil && conn.IsReused() && err == ErrPeerClosed {
+	reqctx := context.WithValue(ctx, clientConnCtxKey{}, conn)
+	reqctx = context.WithValue(reqctx, clientProtocolCtxKey{}, prot)
+	err = invoke(reqctx, method, arg, ret)
+	if err != nil && err == ErrPeerClosed && conn.IsReused() {
 		// retry on reused & peer closed connection
 		return cli.Invoke(ctx, method, arg, ret)
 	}
@@ -112,7 +112,7 @@ func invoke(ctx context.Context, method string, arg, ret interface{}, options ..
 	// Read the response.
 	_, rt, rseq, err := prot.ReadMessageBegin()
 	if err != nil {
-		//if conn.IsReused() && err == ErrPeerClosed {
+		//if err == ErrPeerClosed && conn.IsReused() {
 		//	// retry on reused & peer closed connection
 		//	return cli.Invoke(ctx, method, arg, ret, options...)
 		//}
@@ -155,23 +155,24 @@ func NewProtocolInvokerFactory(dialer Dialer, opts ...Option) func(address strin
 	factory.ppool.New = func() interface{} {
 		return NewProtocol(nil, factory.opts)
 	}
-
-	return func(address string) (ProtocolInvoker, error) {
-		conn, err := factory.cpool.Take(context.TODO(), address)
-		if err != nil {
-			return nil, err
-		}
-		// TODO: options
-		prot := factory.ppool.Get().(*Protocol)
-		prot.Reset(conn)
-		return &protocolInvoker{address: address, f: factory, c: conn, p: prot}, nil
-	}
+	return factory.New
 }
 
 type factory struct {
 	cpool Pool
 	ppool sync.Pool
 	opts  options
+}
+
+func (f *factory) New(address string) (ProtocolInvoker, error) {
+	conn, err := f.cpool.Take(context.TODO(), address)
+	if err != nil {
+		return nil, err
+	}
+	// TODO: options
+	prot := f.ppool.Get().(*Protocol)
+	prot.Reset(conn)
+	return &protocolInvoker{address: address, f: f, c: conn, p: prot}, nil
 }
 
 type protocolInvoker struct {
@@ -197,13 +198,16 @@ func (c *protocolInvoker) Invoke(ctx context.Context, method string, arg, ret in
 		ctx = context.WithValue(ctx, clientProtocolCtxKey{}, c.p)
 	}
 	err = invoke(ctx, method, arg, ret)
-	//if err != nil && c.c.IsReused() && err == ErrPeerClosed {
-	//	// retry on reused & peer closed connection
-	//	invoker, err := c.f.Invoker(c.address)
-	//	if err != nil {
-	//		return err
-	//	}
-	//	return invoker.Invoke(ctx, method, arg, ret)
-	//}
+	if err != nil && err == ErrPeerClosed && c.c.IsReused() {
+		// retry on reused & peer closed connection
+		c.Close()
+		newInvoker, err := c.f.New(c.address)
+		if err != nil {
+			return err
+		}
+
+		*c = *(newInvoker.(*protocolInvoker))
+		return c.Invoke(ctx, method, arg, ret)
+	}
 	return err
 }

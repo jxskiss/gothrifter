@@ -66,7 +66,7 @@ func New{{ $svc.Name }}KitDefaultProcessor(name string, svc {{ $svc.Name }}Handl
 }
 
 {{ range $meth := $svc.Methods }}
-func (s *{{ $svc.Name }}KitWrapper) {{ $meth.Name }}(ctx context.Context, {{ if $meth.Arguments }}req *{{ formatType (index $meth.Arguments 0).Type }},{{ end }}) (
+func (s *{{ $svc.Name }}KitWrapper) {{ $meth.Name }}(ctx context.Context, {{ if $meth.Arguments }}req {{ if (isPtrType (index $meth.Arguments 0).Type) }}*{{ end }}{{ formatType (index $meth.Arguments 0).Type }},{{ end }}) (
     {{ if (not (or $meth.Oneway (eq $meth.ReturnType.Name "void"))) }} {{ formatReturn $meth.ReturnType }}, {{ end }} error) {
     ctx = kit.NewServerRpcCtx(ctx, s.name, "{{ $meth.Name }}")
     {{ if (or $meth.Oneway (eq $meth.ReturnType.Name "void") ) }}
@@ -88,10 +88,10 @@ func mk{{ $svc.Name }}{{ $meth.Name }}Endpoint(svc {{ $svc.Name }}Handler) endpo
     return func(ctx context.Context, req interface{}) (interface{}, error) {
         {{ if (or $meth.Oneway (eq $meth.ReturnType.Name "void") ) }}
         // {{ if $meth.Oneway }}oneway{{ else }}void{{ end }}
-        err := svc.{{ $meth.Name }}(ctx, {{ if $meth.Arguments }}req.(*{{ formatType (index $meth.Arguments 0).Type }}{{ end }})
+        err := svc.{{ $meth.Name }}(ctx, {{ if $meth.Arguments }}req.({{ if (isPtrType (index $meth.Arguments 0).Type) }}*{{ end }}{{ formatType (index $meth.Arguments 0).Type }}){{ end }})
         return nil, err
         {{ else }}
-        return svc.{{ $meth.Name }}(ctx, {{ if $meth.Arguments }}req.(*{{ formatType (index $meth.Arguments 0).Type }}{{ end }}))
+        return svc.{{ $meth.Name }}(ctx, {{ if $meth.Arguments }}req.({{ if (isPtrType (index $meth.Arguments 0).Type) }}*{{ end }}{{ formatType (index $meth.Arguments 0).Type }}){{ end }})
         {{ end }}
     }
 }
