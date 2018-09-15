@@ -10,14 +10,14 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/sd"
 	"github.com/go-kit/kit/sd/lb"
-	thrift "github.com/jxskiss/gothrifter/lib/thrift2"
+	"github.com/jxskiss/gothrifter/lib/thrift"
 	"github.com/rs/xid"
 )
 
 type Client struct {
 	caller   string
 	service  string
-	ifactory thrift.ProtocolInvokerFactory
+	ifactory func(address string) (thrift.ProtocolInvoker, error)
 	cfactory func(invoker thrift.Invoker) endpoint.Endpoint
 	opts     []thrift.Option
 	mws      []endpoint.Middleware
@@ -112,7 +112,7 @@ func (kc *Client) Call(method string, ctx context.Context, request interface{}) 
 }
 
 func (kc *Client) endpointFactory(instance string) (endpoint.Endpoint, io.Closer, error) {
-	invoker, err := kc.ifactory.New(instance)
+	invoker, err := kc.ifactory(instance)
 	if err != nil {
 		return nil, nil, err
 	}

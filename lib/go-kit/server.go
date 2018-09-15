@@ -10,7 +10,7 @@ import (
 	"github.com/go-kit/kit/endpoint"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	thrift "github.com/jxskiss/gothrifter/lib/thrift2"
+	thrift "github.com/jxskiss/gothrifter/lib/thrift"
 	"github.com/rs/xid"
 )
 

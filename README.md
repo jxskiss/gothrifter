@@ -6,7 +6,7 @@
   - [v] kit code generation
   - [ ] check if service satisfy requirement
 
-- Refactor the messy client/invoker interface
+- [v] Refactor the messy client/invoker interface
 
 - Refactor error handling
   - protocol and transport errors
@@ -14,15 +14,11 @@
   - standard error codes
   - errors in server/client codes
 
-- Rename project to thriftkit
+- [v] Remove the abandoned package lib/thrift
+
+- [v] Rename the package lib/thrift2 as lib/thrift
 
 - Implement command line option to generate go-kit codes optionally
-
-- Remove the abandoned package lib/thrift
-
-- Rename the package lib/thrift2 as lib/thrift
-
-- Rename the `Server` implementation as `SimpleServer`
 
 - Implement nocopy reader
 
@@ -34,11 +30,17 @@
   - separate kitclient & kitserver files for each service
   - merge encoder & decoder methods into ttypes and service files
 
-- Generate main.go file optionally by command line option
+- Restructure the template files
 
-- Generate more user-friendly client library
-  - reference: google calendar api sdk
+- Generate main.go file optionally by command line option
 
 - Examples to use this library and framework
 
-- Register service for KitServer (service discovery)
+- [v] Register service for KitServer (service discovery)
+
+- Rename the `Server` implementation as `SimpleServer`
+
+- Rename project to thriftkit
+
+- Generate more user-friendly client library
+  - reference: google calendar api sdk
