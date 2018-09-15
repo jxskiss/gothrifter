@@ -74,7 +74,7 @@ func (cli *{{ $svc.Name }}KitClient) {{ toCamelCase $meth.Name }}(
     }
     {{ if isPtrType $meth.ReturnType }}
     if rsp == nil {
-        return nil, thrift.NewApplicationException(thrift.MISSING_RESULT, "response is nil")
+        return nil, thrift.ErrNilResponse
     }
     {{ end }}
     return rsp.({{ formatReturn $meth.ReturnType }}), nil
@@ -97,7 +97,7 @@ func mk{{ $svc.Name }}ClientEndpoint(invoker thrift.Invoker) endpoint.Endpoint {
             {{ end }}
         {{ end }}
         default:
-            return nil, fmt.Errorf("unknown method: %s", method)
+            return nil, thrift.ErrUnknownFunction
         }
 	}
 }

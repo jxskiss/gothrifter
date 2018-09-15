@@ -5,6 +5,8 @@ import (
 	"io"
 )
 
+const MaxBufferLength = 15 << 20
+
 type bufReader struct {
 	rd  *bufio.Reader
 	tmp [10]byte

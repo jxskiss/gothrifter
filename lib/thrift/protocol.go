@@ -213,7 +213,7 @@ func (p *Protocol) preReadMessageBegin() (protoID ProtocolID, err error) {
 	if b[0] == COMPACT_PROTOCOL_ID { // compact protocol
 		version := int(b[1] & COMPACT_VERSION_MASK)
 		if version != COMPACT_VERSION && version != COMPACT_VERSION_BE {
-			err = fmt.Errorf("unexpected compact version %02x", version)
+			err = ErrCompactVersion
 			return
 		}
 		if err = p.UseCompact(version); err != nil {

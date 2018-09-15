@@ -108,9 +108,8 @@ func (r *compactReader) ReadFieldEnd() error {
 }
 
 func (r *compactReader) ReadMapBegin() (keyType Type, valueType Type, size int, err error) {
-	size32, e := r.readVarInt32()
-	if e != nil {
-		err = e // TODO
+	size32, err := r.readVarInt32()
+	if err != nil {
 		return
 	}
 	if size32 < 0 {
@@ -118,9 +117,8 @@ func (r *compactReader) ReadMapBegin() (keyType Type, valueType Type, size int, 
 		return
 	}
 	size = int(size32)
-	keyAndValueType, e := r.ReadByte()
-	if e != nil {
-		err = e // TODO
+	keyAndValueType, err := r.ReadByte()
+	if err != nil {
 		return
 	}
 	keyType = compactType(keyAndValueType >> 4).toType()
@@ -160,6 +158,10 @@ func (r *compactReader) readCollectionBegin() (elemType Type, size int, err erro
 			return
 		}
 		size = int(size2)
+	}
+	if size < 0 {
+		err = ErrDataLength
+		return
 	}
 	elemType = compactType(lenAndType).toType()
 	return
@@ -245,12 +247,8 @@ func (r *compactReader) ReadFloat() (value float32, err error) {
 }
 
 func (r *compactReader) ReadString() (value string, err error) {
-	var length int32
-	if length, err = r.readVarInt32(); err != nil {
-		return
-	}
-	var b = make([]byte, length)
-	if _, err = r.Read(b); err != nil {
+	b, err := r.ReadBinary()
+	if err != nil {
 		return
 	}
 	// no need to copy the memory
@@ -260,6 +258,14 @@ func (r *compactReader) ReadString() (value string, err error) {
 func (r *compactReader) ReadBinary() (value []byte, err error) {
 	var length int32
 	if length, err = r.readVarInt32(); err != nil {
+		return
+	}
+	if length < 0 {
+		err = ErrDataLength
+		return
+	}
+	if length > MaxBufferLength {
+		err = ErrMaxBufferLen
 		return
 	}
 	value = make([]byte, length)

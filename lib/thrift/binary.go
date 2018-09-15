@@ -85,6 +85,10 @@ func (r *binaryReader) ReadMapBegin() (keyType Type, valueType Type, size int, e
 	}
 	keyType, valueType = Type(b[0]), Type(b[1])
 	size = int(binary.BigEndian.Uint32(b[2:6]))
+	if size < 0 {
+		err = ErrDataLength
+		return
+	}
 	return
 }
 
@@ -115,6 +119,10 @@ func (r *binaryReader) readCollectionBegin() (elemType Type, size int, err error
 	}
 	elemType = Type(b[0])
 	size = int(binary.BigEndian.Uint32(b[1:5]))
+	if size < 0 {
+		err = ErrDataLength
+		return
+	}
 	return
 }
 
@@ -166,12 +174,8 @@ func (r *binaryReader) ReadFloat() (value float32, err error) {
 }
 
 func (r *binaryReader) ReadString() (value string, err error) {
-	var length int32
-	if length, err = r.ReadI32(); err != nil {
-		return
-	}
-	var b = make([]byte, length)
-	if _, err = r.Read(b); err != nil {
+	b, err := r.ReadBinary()
+	if err != nil {
 		return
 	}
 	// no need to copy the memory
@@ -181,6 +185,14 @@ func (r *binaryReader) ReadString() (value string, err error) {
 func (r *binaryReader) ReadBinary() (value []byte, err error) {
 	var length int32
 	if length, err = r.ReadI32(); err != nil {
+		return
+	}
+	if length < 0 {
+		err = ErrDataLength
+		return
+	}
+	if length > MaxBufferLength {
+		err = ErrMaxBufferLen
 		return
 	}
 	value = make([]byte, length)

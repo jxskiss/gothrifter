@@ -1,8 +1,14 @@
 {{/* .Type (Category = parser.TypeContainer) */}}
 
-_, size, err := r.ReadListBegin()
+vt, size, err := r.ReadListBegin()
 if err != nil {
     return err
+}
+if vt != thrift.{{ .ValueType.TType }} {
+    return thrift.ErrFieldType
+}
+if size > MaxListElements {
+    return thrift.ErrMaxListElements
 }
 lst := make({{ formatType . }}, 0, size)
 for i := 0; i < size; i++ {

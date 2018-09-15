@@ -1,8 +1,14 @@
 {{/* .Type (Category = parser.TypeContainer) */}}
 
-_, _, size, err := r.ReadMapBegin()
+kt, vt, size, err := r.ReadMapBegin()
 if err != nil {
     return err
+}
+if kt != thrift.{{ .KeyType.TType }} || vt != thrift.{{ .ValueType.TType }} {
+    return thrift.ErrFieldType
+}
+if size > MaxMapElements {
+    return thrift.ErrMaxMapElements
 }
 m := make({{ formatType . }}, size)
 for i := 0; i < size; i++ {

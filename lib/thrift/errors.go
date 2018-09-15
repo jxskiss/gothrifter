@@ -15,4 +15,5 @@ var (
 	ErrSeqMismatch     = errors.New("thrift: seq mismatch")
 	ErrDataLength      = errors.New("thrift: invalid data length")
 	ErrDepthExceeded   = errors.New("thrift: depth limit exceeded")
+	ErrNilResponse     = errors.New("thrift: unexpected nil response")
 )

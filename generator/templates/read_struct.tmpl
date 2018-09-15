@@ -19,6 +19,9 @@ func (p *{{ $name }}) Read(r thrift.Reader) (err error) {
         switch fieldId {
         {{ range .Fields }}
         case {{ .ID }}: // {{ .ID }}: {{ .Name }} {{ if isPtrField . }}*{{ end }}{{ formatType .Type }}
+            if fieldType != thrift.{{ .Type.TType }} {
+                return thrift.ErrFieldType
+            }
             var tmp {{ if (and (isPtrField .) (isPtrType .Type)) }}*{{ end }}{{ formatType .Type }}
             {{ formatRead .Type "tmp" }}
             p.{{ toCamelCase .Name }} = {{ if (and (isPtrField .) (not (isPtrType .Type))) }}&{{ end }}tmp

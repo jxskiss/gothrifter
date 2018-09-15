@@ -40,8 +40,9 @@ type Exception interface {
 }
 
 type ApplicationException struct {
-	m string // 1
-	t int32  // 2
+	m   string // 1
+	t   int32  // 2
+	e error  // -
 }
 
 func NewApplicationException(t int32, m string) error {
@@ -53,7 +54,7 @@ func FromErr(err error) *ApplicationException {
 	if ok {
 		return ex
 	}
-	return &ApplicationException{m: err.Error()}
+	return &ApplicationException{m: err.Error(), e: err}
 }
 
 // TypeID returns the exception type.
@@ -63,15 +64,15 @@ func (e *ApplicationException) TypeID() int32 {
 
 // Error implements the error interface.
 func (e *ApplicationException) Error() string {
+	if e.m == "" && e.e != nil {
+		return e.e.Error()
+	}
 	return e.m
 }
 
-//func (e *ApplicationException) Equal(o *ApplicationException) bool {
-//	if e == nil || o == nil {
-//		return false
-//	}
-//	return e.Message == o.Message && e.m == o.m
-//}
+func (e *ApplicationException) Err() error {
+	return e.e
+}
 
 func (e *ApplicationException) Read(r Reader) error {
 	if _, err := r.ReadStructBegin(); err != nil {

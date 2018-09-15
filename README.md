@@ -1,46 +1,50 @@
 # thriftkit
 
+## About
+
+This is an exercise project to learn about the Thrift RPC framework, the
+[go-kit](https://github.com/go-kit/kit/) toolkit and golang performance tuning.
+
+It's TOTALLY NOT ready to be used in any production environment.
+
 ## TODO
 
-- Support oneway and void method (kit)
-  - [v] kit code generation
+- [ ] Support oneway and void method (kit)
+  - [x] kit code generation
   - [ ] check if service satisfy requirement
 
-- [v] Refactor the messy client/invoker interface
+- [x] Refactor the messy client/invoker interface
 
-- Refactor error handling
-  - protocol and transport errors
-  - kit framework errors
-  - standard error codes
-  - errors in server/client codes
+- [ ] Refactor error handling
+  - [ ] protocol and transport errors
+  - [ ] kit framework errors
+  - [ ] standardize error codes
+  - [ ] errors in server/client codes
 
-- [v] Remove the abandoned package lib/thrift
+- [x] Remove the abandoned package lib/thrift
 
-- [v] Rename the package lib/thrift2 as lib/thrift
+- [x] Rename the package lib/thrift2 as lib/thrift
 
-- Implement command line option to generate go-kit codes optionally
+- [ ] Implement command line option to generate go-kit codes optionally
 
-- Implement nocopy reader
+- [ ] Implement nocopy reader
 
-- Support service inheritance
+- [ ] Support service inheritance
 
-- Refactor structure of the generated files
-  - split constants, ttypes files
-  - separate service file for each service
-  - separate kitclient & kitserver files for each service
-  - merge encoder & decoder methods into ttypes and service files
+- [ ] Refactor structure of the generated files
+  - [ ] split constants, ttypes files
+  - [ ] separate service file for each service
+  - [ ] separate kitclient & kitserver files for each service
+  - [ ] merge encoder & decoder methods into ttypes and service files
 
-- Restructure the template files
+- [ ] Restructure the template files
 
-- Generate main.go file optionally by command line option
+- [ ] Generate main.go file optionally by command line option
 
-- Examples to use this library and framework
+- [x] Examples to use this library and framework
 
-- [v] Register service for KitServer (service discovery)
+- [x] Register service for KitServer (service discovery)
 
-- Rename the `Server` implementation as `SimpleServer`
+- [ ] Rename the `Server` implementation as `SimpleServer`
 
-- Rename project to thriftkit
-
-- Generate more user-friendly client library
-  - reference: google calendar api sdk
+- [ ] Rename project to thriftkit
