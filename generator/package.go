@@ -194,6 +194,23 @@ func (p *Package) Generate() error {
 		if err = ioutil.WriteFile(kitclientFile, code, 0644); err != nil {
 			return err
 		}
+
+		// http processor
+		httpserverFile, err := filepath.Abs(filepath.Join(outDir, "httpserver.go"))
+		if err != nil {
+			return err
+		}
+		buf.Reset()
+		if err = p.G.tmpl("httpserver.tmpl").Execute(&buf, p); err != nil {
+			log.Println("httpserver:", err)
+			return err
+		}
+		if code, err = p.G.formatCode(buf.Bytes()); err != nil {
+			return err
+		}
+		if err = ioutil.WriteFile(httpserverFile, code, 0644); err != nil {
+			return err
+		}
 	}
 
 	return nil

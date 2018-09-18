@@ -10,6 +10,11 @@ enum Corpus {
     VIDEO = 6;
 }
 
+exception TestEx {
+    1: required string type;
+    2: optional string message;
+}
+
 struct Result {
     1: required string url;
     2: required string title;
@@ -29,7 +34,7 @@ struct SearchResponse {
 }
 
 service SearchService {
-    SearchResponse Search(1: SearchRequest req);
+    SearchResponse Search(1: SearchRequest req) throws(2: TestEx test_ex);
     void Ping();
     oneway void Ack(1: i64 some_id);
 }

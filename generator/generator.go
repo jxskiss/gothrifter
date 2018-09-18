@@ -464,6 +464,7 @@ func (g *Generator) parseArguments(svc *parser.Service) ([]*parser.Struct, error
 		for _, f := range method.Exceptions {
 			// any exception should be considered optional
 			f.Optional = true
+			f.Requiredness = parser.ReqOptional
 			s.Fields = append(s.Fields, f)
 		}
 		argStructs = append(argStructs, s)

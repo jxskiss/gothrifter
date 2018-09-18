@@ -4,10 +4,7 @@ import (
 	"fmt"
 	thrift "github.com/jxskiss/thriftkit/lib/thrift"
 	"reflect"
-	"strconv"
-	"strings"
 	"sync"
-	"unicode"
 	"unsafe"
 )
 
@@ -132,45 +129,6 @@ func decoderOf(prefix string, valType reflect.Type) internalDecoder {
 		}
 	}
 	return &unknownDecoder{prefix, valType}
-}
-
-func isEnumType(valType reflect.Type) bool {
-	if valType.Kind() != reflect.Int64 {
-		return false
-	}
-	_, hasStringMethod := valType.MethodByName("String")
-	return hasStringMethod
-}
-
-func parseFieldId(refField reflect.StructField) int16 {
-	if !unicode.IsUpper(rune(refField.Name[0])) {
-		return -1
-	}
-	thriftTag := refField.Tag.Get("thrift")
-	if thriftTag == "" {
-		return -1
-	}
-	parts := strings.Split(thriftTag, ",")
-	if len(parts) < 2 {
-		return -1
-	}
-	fieldId, err := strconv.Atoi(parts[1])
-	if err != nil {
-		return -1
-	}
-	return int16(fieldId)
-}
-
-func parseMapType(refField reflect.StructField) thrift.Type {
-	if refField.Type.Elem().Kind() != reflect.Bool {
-		return thrift.MAP
-	}
-	tag := refField.Tag.Get("thrift")
-	parts := strings.Split(tag, ",")
-	if len(parts) >= 4 && strings.TrimSpace(parts[3]) == "map" {
-		return thrift.MAP
-	}
-	return thrift.SET
 }
 
 type unknownDecoder struct {

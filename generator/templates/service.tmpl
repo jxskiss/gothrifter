@@ -128,7 +128,8 @@ func (h {{ $svc.Name }}Processor) Process(ctx context.Context, r thrift.Reader, 
                 switch e := err.(type) {
                 {{ range $exc := $meth.Exceptions }}
                 case *{{ formatType $exc.Type }}:
-                    result.{{ toCamelCase $exc.Name }} = e {{ end }}
+                    result.{{ toCamelCase $exc.Name }} = e
+                {{ end }}
                 default:
                     rspTypeid = thrift.EXCEPTION
                     rspBody = thrift.FromErr(e)

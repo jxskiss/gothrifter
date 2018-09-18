@@ -1,12 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/jxskiss/thriftkit/example/search/gen-thrifter/search"
 	"github.com/jxskiss/thriftkit/lib/go-kit"
 	"github.com/jxskiss/thriftkit/lib/thrift"
 	"log"
+	"net/http"
 	"time"
 )
 
@@ -15,6 +19,7 @@ import (
 func main() {
 	server := flag.Bool("server", false, "run server")
 	usekit := flag.Bool("kit", false, "using go-kit")
+	usehttp := flag.Bool("http", false, "using http transport")
 	addr := flag.String("addr", "127.0.0.1:9090", "address")
 	flag.Parse()
 
@@ -22,6 +27,8 @@ func main() {
 	if *server {
 		if *usekit {
 			err = runKitServer(*addr)
+		} else if *usehttp {
+			err = runHttpServer(*addr)
 		} else {
 			err = runSimpleServer(*addr)
 		}
@@ -31,6 +38,8 @@ func main() {
 	} else {
 		if *usekit {
 			err = runKitClient()
+		} else if *usehttp {
+			err = runHttpClient(*addr)
 		} else {
 			err = runSimpleClient(*addr)
 		}
@@ -102,6 +111,47 @@ func runKitClient() error {
 		return err
 	}
 	return doRequests(cli)
+}
+
+func runHttpServer(addr string) error {
+	processor := search.NewSearchServiceProcessor(&searchImpl{})
+	handler := thrift.NewThriftHandlerFunc(processor)
+	http.HandleFunc("/", handler)
+	err := http.ListenAndServe(addr, nil)
+	return err
+}
+
+func runHttpClient(addr string) error {
+	req := &search.SearchServiceSearchArgs{
+		Req: &search.SearchRequest{
+			Query:         "dummy http request",
+			PageNumber:    2,
+			ResultPerPage: 20,
+		},
+	}
+	reqBody, err := json.Marshal(req)
+	if err != nil {
+		return err
+	}
+	httpReq, err := http.NewRequest("POST", "http://"+addr, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-Rpc-Method", "Search")
+	httpRsp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		return err
+	}
+	defer httpRsp.Body.Close()
+	rsp := search.NewSearchServiceSearchResult()
+	err = json.NewDecoder(httpRsp.Body).Decode(rsp)
+	if err != nil {
+		return err
+	}
+	log.Println("search http response", spew.Sprintf("%#v", rsp.Success), "err=", err)
+
+	return nil
 }
 
 // Service implementation.
